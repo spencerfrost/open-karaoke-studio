@@ -9,24 +9,24 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-accent text-accent-foreground shadow-xs hover:bg-accent/80",
+        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
         primary: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
         secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-        accent: "bg-accent text-accent-foreground shadow-xs hover:bg-accent/80",
+        accent: "bg-accent text-accent-foreground shadow-xs hover:opacity-90",
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "border border-primary text-primary shadow-xs hover:bg-primary hover:text-primary-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-secondary text-secondary shadow-xs hover:bg-secondary hover:text-secondary-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         "outline-dark":
           "border border-secondary text-secondary bg-transparent shadow-xs hover:bg-secondary/10",
         // Outline in the page's text color, for buttons sitting on the page
         // background rather than on a card.
         "outline-foreground":
           "border-2 border-foreground text-foreground bg-transparent hover:bg-surface-hover",
-        ghost: "text-primary hover:bg-primary/20",
-        icon: "text-primary hover:bg-primary/20 rounded-full",
-        link: "text-primary underline-offset-4 hover:underline",
-        pill: "rounded-full bg-primary/20 text-foreground hover:bg-primary/70",
+        ghost: "text-foreground-dim hover:bg-surface-hover hover:text-foreground",
+        icon: "text-foreground-dim hover:bg-surface-hover hover:text-foreground rounded-full",
+        link: "text-secondary underline-offset-4 hover:underline",
+        pill: "rounded-full bg-surface-raised text-foreground hover:bg-surface-hover",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

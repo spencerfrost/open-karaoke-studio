@@ -40,6 +40,17 @@ const RAW_PALETTE_CLASSES = [
   },
 ]
 
+// accent is the third voice, a loud colour in every theme. Stock shadcn uses it
+// as the hover/focus fill, so a freshly installed component would paint every
+// hover in it: switch those to surface-hover.
+const ACCENT_AS_HOVER = [
+  {
+    pattern: '(hover|focus|focus-visible|\\]):bg-accent\\b',
+    message:
+      'accent is the third voice, not a hover fill. Use bg-surface-hover (and text-foreground) for hover, focus and highlighted rows.',
+  },
+]
+
 const asSelectors = (rules) =>
   rules.flatMap(({ pattern, message }) => [
     { selector: `Literal[value=/${pattern}/]`, message },
@@ -69,7 +80,11 @@ export default tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-restricted-syntax': [
         'error',
-        ...asSelectors([...RETIRED_COLOR_CLASSES, ...RAW_PALETTE_CLASSES]),
+        ...asSelectors([
+          ...RETIRED_COLOR_CLASSES,
+          ...RAW_PALETTE_CLASSES,
+          ...ACCENT_AS_HOVER,
+        ]),
       ],
     },
   },
