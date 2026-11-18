@@ -1,7 +1,8 @@
 import React from "react";
 import { Composition } from "remotion";
 import { evenBeats } from "./beats";
-import { FPS, SHOWCASE_FRAMES, Showcase } from "./Showcase";
+import { OPEN_BACKGROUNDS } from "./components/CoverBackgrounds";
+import { FPS, OPEN_PREVIEW_FRAMES, SHOWCASE_FRAMES, Showcase } from "./Showcase";
 import { CLOSE_SHOT_BEATS, CloseShot } from "./shots/CloseShot";
 import { FIND_SHOT_BEATS, FindShot } from "./shots/FindShot";
 import { OPEN_SHOT_BEATS, OpenShot, TV_SHOT_BEATS, TvShot } from "./shots/HookShot";
@@ -28,6 +29,17 @@ export const Root: React.FC = () => (
       defaultProps={{ songStart: 35.67 }}
       {...SIZE}
     />
+    {/* The open with each background option, on the real soundtrack and beats, into the start of FIND. */}
+    {OPEN_BACKGROUNDS.map((background) => (
+      <Composition
+        key={background}
+        id={`Open-${background}`}
+        component={Showcase}
+        durationInFrames={OPEN_PREVIEW_FRAMES}
+        defaultProps={{ openBackground: background }}
+        {...SIZE}
+      />
+    ))}
     <Composition id="CloseShot" component={CloseShot} durationInFrames={beatsLong(CLOSE_SHOT_BEATS)} {...SIZE} />
   </>
 );

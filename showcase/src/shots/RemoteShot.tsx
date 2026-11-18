@@ -57,10 +57,10 @@ const MAIN_PHONE = { x: 1440, y: 210 };
 const GUEST_SCALE = 0.62;
 /** Guest phones sit outside the first frame; the pull-back reveals them. */
 const GUESTS = [
-  { x: -360, y: -110, fromX: -900, fromY: -110 },
-  { x: 1840, y: 760, fromX: 2500, fromY: 760 },
-  { x: -360, y: 650, fromX: -900, fromY: 650 },
-  { x: 1840, y: -200, fromX: 2500, fromY: -200 },
+  { x: -210, y: -70, fromX: -900, fromY: -70 },
+  { x: 1790, y: 700, fromX: 2500, fromY: 700 },
+  { x: -210, y: 620, fromX: -900, fromY: 620 },
+  { x: 1790, y: -110, fromX: 2500, fromY: -110 },
 ];
 
 const tvPoint = (row: number): Point => {
@@ -130,7 +130,7 @@ const Outro: React.FC<{ T: Timeline }> = ({ T }) => {
             transform: `scale(${1.25 - a * 0.25})`,
           }}
         >
-          FIVE PHONES. <span style={{ color: color.magenta, textShadow: "0 0 40px rgba(255,42,109,0.6)" }}>ONE TV.</span>
+          MULTIPLE PHONES. <span style={{ color: color.magenta, textShadow: "0 0 40px rgba(255,42,109,0.6)" }}>ONE TV.</span>
         </div>
         <div
           style={{

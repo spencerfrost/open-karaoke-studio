@@ -1,6 +1,7 @@
 import React from "react";
 import { Audio, interpolate, Sequence, staticFile } from "remotion";
 import { BEATS, beatFramesFrom, nearestBeat } from "./beats";
+import { OpenBackground } from "./components/CoverBackgrounds";
 import { CLOSE_SHOT_BEATS, CloseShot } from "./shots/CloseShot";
 import { FIND_SHOT_BEATS, FindShot } from "./shots/FindShot";
 import { OPEN_SHOT_BEATS, OpenShot, TV_SHOT_BEATS, TvShot } from "./shots/HookShot";
@@ -43,6 +44,8 @@ const SHOTS = {
   close: { from: atBeat(CLOSE_BEAT), to: atBeat(CLOSE_BEAT + CLOSE_SHOT_BEATS), beat: CLOSE_BEAT },
 };
 export const SHOWCASE_FRAMES = SHOTS.close.to;
+/** The open and the first two beats of FIND: enough to judge the open's background with the cut. */
+export const OPEN_PREVIEW_FRAMES = atBeat(FIND_BEAT + 2);
 
 /** A shot's beats as frames from its own start. */
 const beatsOf = (shot: { from: number; beat: number }) => beatFramesFrom(shot.beat, shot.from, VIDEO_START, FPS);
@@ -58,7 +61,7 @@ const bedVolume = (f: number) =>
     extrapolateRight: "clamp",
   });
 
-export const Showcase: React.FC = () => (
+export const Showcase: React.FC<{ openBackground?: OpenBackground }> = ({ openBackground }) => (
   <>
     <Audio src={staticFile("audio/instrumental.mp3")} trimBefore={SONG_TRIM_FRAMES} volume={bedVolume} />
     <Audio
@@ -67,7 +70,7 @@ export const Showcase: React.FC = () => (
       volume={(f) => singerLevelAt(VIDEO_START + f / FPS) * bedVolume(f)}
     />
     <Sequence from={SHOTS.open.from} durationInFrames={SHOTS.open.to - SHOTS.open.from}>
-      <OpenShot beats={beatsOf(SHOTS.open)} />
+      <OpenShot beats={beatsOf(SHOTS.open)} background={openBackground} />
     </Sequence>
     <Sequence from={SHOTS.find.from} durationInFrames={SHOTS.find.to - SHOTS.find.from}>
       <FindShot beats={beatsOf(SHOTS.find)} />

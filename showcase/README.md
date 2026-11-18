@@ -30,6 +30,9 @@ moves the ones before it.
 
 "Don't Blink" by Dropical (royalty-free). The audio isn't committed. To render, put these in place:
 
+- `public/covers/`: real album covers for the open's background options (`Open-*` compositions,
+  `src/components/CoverBackgrounds.tsx`). `scripts/pick-covers.sh` copies a fixed random set from the app's
+  library (`LIBRARY_DIR` in `backend/.env`). They stay local because the labels own them.
 - `public/audio/instrumental.mp3` and `public/audio/vocals.mp3`: the app's three-track separation of the song
   (`instrumental.mp3` and `vocals.mp3` from the song's folder in the library).
 

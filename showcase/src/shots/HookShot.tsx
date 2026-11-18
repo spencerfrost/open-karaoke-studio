@@ -1,15 +1,17 @@
 import React from "react";
-import { AbsoluteFill, Easing, Img, interpolate, random, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { BeatFrames, evenBeats } from "../beats";
 import { Backdrop, Overlay } from "../components/Backdrop";
-import { Cover, TV_H, TV_W, Tv } from "../components/Devices";
+import { OpenBackground, OpenBackgroundLayer } from "../components/CoverBackgrounds";
+import { TV_H, TV_W, Tv } from "../components/Devices";
 import { color, font } from "../theme";
 import { TV_STABS } from "./SplitShot";
 
 /**
  * The opening and the TV, two blocks that used to be one shot.
  *
- * OpenShot: "KARAOKE NIGHT." → "ANY SONG." over a rushing wall of covers.
+ * OpenShot: "KARAOKE NIGHT." → "ANY SONG." over covers (the options for that
+ * layer are in components/CoverBackgrounds.tsx).
  * TvShot: "HOSTED ON YOUR TV." slams in and rises to a header; on the
  * song's three chord stabs the TV pops in, its screen powers on with the
  * bunny, and the name lands; then the camera pushes through the screen into
@@ -66,44 +68,6 @@ const Slam: React.FC<{ text: string; start: number; end: number; accent?: boolea
       >
         {text}
       </div>
-    </AbsoluteFill>
-  );
-};
-
-/** Rows of covers streaming sideways, alternating direction: "any song". */
-const CoverWall: React.FC<{ T: OpenTimeline }> = ({ T }) => {
-  const frame = useCurrentFrame();
-  const t = frame - T.songIn;
-  if (t < -2) return null;
-  const opacity = interpolate(frame, [T.songIn - 2, T.songIn + 6, T.end - 4, T.end], [0, 0.4, 0.4, 0], clamp);
-  const rows = 6;
-  const size = 170;
-  const gap = 22;
-  return (
-    <AbsoluteFill style={{ opacity, transform: "rotate(-8deg) scale(1.25)" }}>
-      {Array.from({ length: rows }).map((_, r) => {
-        const dir = r % 2 === 0 ? -1 : 1;
-        const speed = 16 + random(`speed-${r}`) * 10;
-        const offset = dir * t * speed - 400;
-        return (
-          <div
-            key={r}
-            style={{
-              position: "absolute",
-              top: -60 + r * (size + gap),
-              left: offset % ((size + gap) * 4) - (size + gap) * 4,
-              display: "flex",
-              gap,
-            }}
-          >
-            {Array.from({ length: 22 }).map((__, c) => {
-              // Magenta through violet to orange: the theme's warm half, not a rainbow.
-              const h = (250 + Math.floor(random(`h-${r}-${c}`) * 150)) % 360;
-              return <Cover key={c} hues={[h, (h + 30 + random(`d-${r}-${c}`) * 40) % 360]} size={size} radius={8} />;
-            })}
-          </div>
-        );
-      })}
     </AbsoluteFill>
   );
 };
@@ -187,13 +151,16 @@ const Hosted: React.FC<{ T: Timeline; push: number }> = ({ T, push }) => {
   );
 };
 
-export const OpenShot: React.FC<{ beats?: BeatFrames }> = ({ beats = evenBeats() }) => {
+export const OpenShot: React.FC<{ beats?: BeatFrames; background?: OpenBackground }> = ({
+  beats = evenBeats(),
+  background = "real-wall",
+}) => {
   const frame = useCurrentFrame();
   const T = openTimeline(beats);
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       <Backdrop />
-      <CoverWall T={T} />
+      <OpenBackgroundLayer kind={background} T={T} beats={beats} />
       {frame >= T.songIn && (
         <AbsoluteFill
           style={{ background: "radial-gradient(ellipse 55% 35% at center, rgba(7,6,13,0.92), rgba(7,6,13,0.2) 80%)" }}
