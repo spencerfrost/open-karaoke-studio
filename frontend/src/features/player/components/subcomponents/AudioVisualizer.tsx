@@ -51,7 +51,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const sizeRef = useRef({ width: 0, height: 0 });
-  // One value per half — the other half is drawn as its mirror, bass-out.
+  // One value per distance from center — k = 0 is the single center bar, and
+  // every k > 0 is drawn twice, mirrored either side of it, bass-out.
   const halfCount = useMemo(
     () => Math.max(1, Math.round(barCount / 2)),
     [barCount],
@@ -159,7 +160,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     if (!ctx) return;
 
     // Draws one bar per distance-from-center k, mirrored to both halves —
-    // k = 0 (bass) sits at the two center-most bars, k = halfCount - 1
+    // k = 0 (bass) is a single bar in the exact center, k = halfCount - 1
     // (treble) sits at the two outer edges.
     const drawMirroredBars = (valueAt: (k: number) => number) => {
       const { width, height: canvasHeight } = sizeRef.current;
@@ -167,14 +168,17 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
       ctx.clearRect(0, 0, width, canvasHeight);
 
-      const totalBars = halfCount * 2;
+      // Odd total so the center bar is shared by both halves rather than
+      // drawn twice side by side.
+      const totalBars = halfCount * 2 - 1;
+      const center = halfCount - 1;
       const barWidth = width / totalBars;
       const spacing = Math.max(1, barWidth * 0.1); // 10% spacing between bars
       const actualBarWidth = barWidth - spacing;
       const radius = Math.min(4, actualBarWidth / 2);
 
       // Rounded top corners, square bottoms. Both mirrored bars share a color,
-      // so they go into one path and one fill.
+      // so they go into one path and one fill (the center bar is just one).
       const corners = [radius, radius, 0, 0];
       ctx.globalAlpha = barOpacity;
       for (let k = 0; k < halfCount; k++) {
@@ -183,7 +187,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
         ctx.fillStyle = barColors[k];
         ctx.beginPath();
-        for (const barIndex of [halfCount - 1 - k, halfCount + k]) {
+        const barIndexes = k === 0 ? [center] : [center - k, center + k];
+        for (const barIndex of barIndexes) {
           ctx.roundRect(
             barIndex * barWidth + spacing / 2,
             y,
