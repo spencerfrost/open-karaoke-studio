@@ -17,8 +17,8 @@ export const Backdrop: React.FC = () => {
           }}
         />
       )}
-      {theme.id === "retro" && (
-        // Retro's faint sunburst (.theme-pattern)
+      {theme.id === "vintage" && (
+        // Vintage's faint sunburst (.theme-pattern)
         <AbsoluteFill
           style={{
             opacity: 0.5,
@@ -45,7 +45,7 @@ export const Overlay: React.FC = () => {
         />
       )}
       {theme.texture === "grain" && (
-        // Retro's pixel-grain texture (.theme-texture), scaled up for 1080p
+        // Vintage's pixel-grain texture (.theme-texture), scaled up for 1080p
         <AbsoluteFill
           style={{
             backgroundImage:

@@ -1,22 +1,26 @@
 import React from "react";
 import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { BeatFrames, evenBeats } from "../beats";
 import { Backdrop, Overlay } from "../components/Backdrop";
 import { color, font } from "../theme";
 
-/** The end card: bunny, name, what it is, where to get it. */
-export const CLOSE_SHOT_FRAMES = 150;
+/**
+ * The end card: bunny, name, what it is, where to get it. Shot length in
+ * beats; the last ones let the song fade out under the card.
+ */
+export const CLOSE_SHOT_BEATS = 10;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
 const PILLS = ["OPEN SOURCE", "SELF-HOSTED", "FREE"];
 
-export const CloseShot: React.FC = () => {
+export const CloseShot: React.FC<{ beats?: BeatFrames }> = ({ beats = evenBeats() }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const fadeIn = interpolate(frame, [0, 8], [0, 1], clamp);
-  const bunny = spring({ frame: frame - 4, fps, config: { damping: 10, stiffness: 150 } });
-  const word = spring({ frame: frame - 14, fps, config: { damping: 14 } });
-  const link = spring({ frame: frame - 54, fps, config: { damping: 16 } });
+  const fadeIn = interpolate(frame, [0, 3], [0, 1], clamp);
+  const bunny = spring({ frame: frame - beats[0], fps, config: { damping: 10, stiffness: 150 } });
+  const word = spring({ frame: frame - beats[1], fps, config: { damping: 14 } });
+  const link = spring({ frame: frame - beats[5], fps, config: { damping: 16 } });
   const bob = Math.sin(frame / 14) * 4;
 
   return (
@@ -51,7 +55,7 @@ export const CloseShot: React.FC = () => {
         </div>
         <div style={{ display: "flex", gap: 18, marginTop: 26 }}>
           {PILLS.map((p, i) => {
-            const s = spring({ frame: frame - 30 - i * 6, fps, config: { damping: 12, stiffness: 180 } });
+            const s = spring({ frame: frame - beats[2 + i], fps, config: { damping: 12, stiffness: 180 } });
             return (
               <div
                 key={p}

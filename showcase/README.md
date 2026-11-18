@@ -14,13 +14,17 @@ pnpm render:shot RemoteShot out/remote-shot.mp4   # one shot
 
 | Shot | File | What happens |
 |---|---|---|
-| Hook | `src/shots/HookShot.tsx` | "Karaoke night." → "Any song." → "Your TV.", push through the screen |
-| Remote | `src/shots/RemoteShot.tsx` | Phones send songs to the TV's queue |
-| Split | `src/shots/SplitShot.tsx` | The song's waveform splits into singer and music |
-| Sing | `src/shots/SingShot.tsx` | Lyrics on the TV, the "Original singer" fader up and down, then "Make it yours" theme flips on the beat |
+| Open | `src/shots/HookShot.tsx` (`OpenShot`) | "Karaoke night." → "Any song." over a wall of covers |
+| Find | `src/shots/FindShot.tsx` | A search types "don't blink", Add is pressed, the cover breaks into the song's waveform |
+| Split | `src/shots/SplitShot.tsx` | The waveform tears into singer and music on the song's three chord stabs |
+| TV | `src/shots/HookShot.tsx` (`TvShot`) | "Hosted on your TV.", the TV, bunny and name land on the stabs, push through the screen |
+| Remote | `src/shots/RemoteShot.tsx` | One phone adds a song, four more fire theirs at the TV's queue |
+| Sing | `src/shots/SingShot.tsx` | Lyrics on the TV, the "Original singer" fader up and down, then "Make it yours" flips through the four themes on the beat |
 | Close | `src/shots/CloseShot.tsx` | Logo, tags, GitHub link |
 
-`src/Showcase.tsx` puts them in order and lays the audio under them.
+`src/Showcase.tsx` puts them in order and lays the audio under them. Every cut sits on the song's beat grid
+(`src/beats.ts`): the shots are counted back in beats from the sing shot, so changing a shot's length in beats
+moves the ones before it.
 
 ## Soundtrack
 
@@ -33,4 +37,4 @@ The data in `src/data/` comes from the same song in the app:
 
 - `lyrics.json`: the lines on screen with the app's word timings. Lines with `"checked": true` were confirmed by ear.
 - `waveform.json`: levels of the separated vocals and instrumental, 0:40–0:49.6.
-- `beats.json`: the song's beat grid (librosa), used for the theme flips.
+- `beats.json`: the song's beat grid (librosa), used for every cut and the theme flips.

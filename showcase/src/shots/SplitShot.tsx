@@ -1,23 +1,31 @@
 import React from "react";
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { BeatFrames, evenBeats } from "../beats";
 import { Backdrop, Overlay } from "../components/Backdrop";
 import waveform from "../data/waveform.json";
 import { color, font } from "../theme";
 
 /**
- * "AI takes the song apart." One waveform splits into the singer and the
- * music (real levels from the app's separated tracks of the soundtrack), then
- * the singer row switches off: only the music is playing.
+ * "AI takes the song apart." The song's waveform (built by FIND) tears into
+ * the singer and the music on the song's three chord stabs (real levels from
+ * the app's separated tracks of the soundtrack), then the singer row switches
+ * off on the downbeat after them: only the music is playing.
  */
-export const SPLIT_SHOT_FRAMES = 150;
+/** Shot length in beats: two bars. */
+export const SPLIT_SHOT_BEATS = 8;
+
+/**
+ * The three chord stabs, in song seconds: the onset peaks read off the
+ * instrumental, pulled 50 ms earlier so the hits land with the attack.
+ */
+export const SPLIT_STABS = [16.284, 17.061, 17.491];
+/** The same three stabs come back 4.763 s later (two bars on), inside the TV shot. */
+export const TV_STABS = SPLIT_STABS.map((t) => t + 4.763);
+/** Song time the shot starts at when rendered on its own. */
+const STANDALONE_START = 15.49;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
-
-const SPLIT_START = 38;
-const SPLIT_END = 72;
-const OFF_START = 100;
-const OFF_END = 118;
-
+const snap = Easing.bezier(0.6, 0, 0.15, 1);
 const normalize = (xs: number[]) => {
   const max = Math.max(...xs);
   return xs.map((x) => x / max);
@@ -29,6 +37,18 @@ const MIX = normalize(SINGER.map((v, i) => v * 0.6 + MUSIC[i]));
 const WIDTH = 1440;
 const BAR_GAP = 5;
 const BAR_W = WIDTH / SINGER.length - BAR_GAP;
+const WAVE_Y = 580;
+const MAX_H = 210;
+
+/** Where the unsplit waveform's bars sit, so FIND can build exactly this. */
+export const WAVE = {
+  left: (1920 - WIDTH) / 2,
+  y: WAVE_Y,
+  barW: BAR_W,
+  gap: BAR_GAP,
+  maxH: MAX_H,
+  levels: MIX,
+};
 
 const Row: React.FC<{
   own: number[];
@@ -71,7 +91,13 @@ const Row: React.FC<{
   );
 };
 
-const Label: React.FC<{ text: string; y: number; opacity: number; tone: string }> = ({ text, y, opacity, tone }) => (
+const Label: React.FC<{ text: string; y: number; opacity: number; tone: string; pop: number }> = ({
+  text,
+  y,
+  opacity,
+  tone,
+  pop,
+}) => (
   <div
     style={{
       position: "absolute",
@@ -82,23 +108,29 @@ const Label: React.FC<{ text: string; y: number; opacity: number; tone: string }
       letterSpacing: 6,
       color: tone,
       opacity,
+      transform: `translateX(${(1 - pop) * -30}px)`,
     }}
   >
     {text}
   </div>
 );
 
-export const SplitShot: React.FC = () => {
+export const SplitShot: React.FC<{ beats?: BeatFrames; stabs?: number[] }> = ({ beats = evenBeats(), stabs }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const grow = interpolate(frame, [0, 24], [0, 1], clamp);
-  const split = interpolate(frame, [SPLIT_START, SPLIT_END], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
-  const off = interpolate(frame, [OFF_START, OFF_END], [0, 1], { ...clamp, easing: Easing.out(Easing.cubic) });
-  const playhead = interpolate(frame, [0, SPLIT_SHOT_FRAMES], [0, 1.05], clamp);
-  const caption = spring({ frame: frame - 4, fps, config: { damping: 12, stiffness: 180 } });
-  const labels = interpolate(frame, [SPLIT_END - 8, SPLIT_END + 4], [0, 1], clamp);
-  const singerY = interpolate(split, [0, 1], [580, 430]);
-  const musicY = interpolate(split, [0, 1], [580, 780]);
+  const [tear, singerIn, musicIn] = stabs ?? SPLIT_STABS.map((t) => Math.round((t - STANDALONE_START) * fps));
+  // The singer switches off on the downbeat after the stabs.
+  const OFF_START = beats[6];
+  const END = beats[SPLIT_SHOT_BEATS];
+  const grow = 1;
+  const split = interpolate(frame, [tear, tear + 7], [0, 1], { ...clamp, easing: snap });
+  const off = interpolate(frame, [OFF_START, OFF_START + 6], [0, 1], { ...clamp, easing: snap });
+  const playhead = interpolate(frame, [0, END], [0, 1.05], clamp);
+  const caption = spring({ frame, fps, config: { damping: 12, stiffness: 180 } });
+  const singerLabel = spring({ frame: frame - singerIn, fps, config: { damping: 12, stiffness: 220 } });
+  const musicLabel = spring({ frame: frame - musicIn, fps, config: { damping: 12, stiffness: 220 } });
+  const singerY = interpolate(split, [0, 1], [WAVE_Y, 430]);
+  const musicY = interpolate(split, [0, 1], [WAVE_Y, 780]);
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
@@ -120,7 +152,7 @@ export const SplitShot: React.FC = () => {
         own={MUSIC}
         split={split}
         y={musicY}
-        maxH={210}
+        maxH={MAX_H}
         fill={`linear-gradient(to bottom, #b07bff, ${color.violet})`}
         glow="rgba(122,4,235,0.8)"
         opacity={1}
@@ -132,7 +164,7 @@ export const SplitShot: React.FC = () => {
         own={SINGER}
         split={split}
         y={singerY}
-        maxH={210}
+        maxH={MAX_H}
         fill={`linear-gradient(to bottom, #ff6b97, ${color.magenta})`}
         glow="rgba(255,42,109,0.8)"
         opacity={(split > 0 ? 1 : 0.5) * (1 - off * 0.7)}
@@ -143,10 +175,11 @@ export const SplitShot: React.FC = () => {
       <Label
         text={off > 0.5 ? "SINGER · OFF" : "SINGER"}
         y={singerY - 170}
-        opacity={labels * (off > 0.5 ? 0.6 : 1)}
+        opacity={(frame >= singerIn ? singerLabel : 0) * (off > 0.5 ? 0.6 : 1)}
         tone={color.magenta}
+        pop={singerLabel}
       />
-      <Label text="MUSIC" y={musicY - 170} opacity={labels} tone="#b07bff" />
+      <Label text="MUSIC" y={musicY - 170} opacity={frame >= musicIn ? musicLabel : 0} tone="#b07bff" pop={musicLabel} />
       <Overlay />
     </AbsoluteFill>
   );

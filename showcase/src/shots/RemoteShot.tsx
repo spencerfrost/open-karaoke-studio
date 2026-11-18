@@ -11,6 +11,7 @@ import {
   TvQueueScreen,
   tvRowTarget,
 } from "../components/Screens";
+import { BeatFrames, evenBeats } from "../beats";
 import { QUEUE } from "../songs";
 import { color, font } from "../theme";
 
@@ -21,20 +22,36 @@ import { color, font } from "../theme";
  * queue. The camera pulls back to reveal four more phones, and each sends its
  * song in turn, stacking up the rotation.
  */
-export const REMOTE_SHOT_FRAMES = 450;
+/** Shot length in beats; every cut, tap and landing sits on a beat. */
+export const REMOTE_SHOT_BEATS = 20;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-// Timeline (frames at 30 fps)
-const DEVICES_IN = 62;
-const TYPE_START = 105;
-const MAIN_TAP = 180;
-const PULSE_FRAMES = 28;
-const ZOOM_START = 226;
-const ZOOM_END = 286;
-const GUEST_TAP_START = 296;
-const GUEST_TAP_STEP = 12;
-const OUTRO = 380;
+/** The shot's timeline, in frames, from its beats. */
+const timeline = (B: BeatFrames) => {
+  /** The frame halfway through beat n. */
+  const half = (n: number) => Math.round((B[n] + B[n + 1]) / 2);
+  return {
+  line1: B[0],
+  line2: B[1],
+  // The headline snaps up out of the way just before the devices pop in.
+  rise: [B[3] - 9, B[3] - 1],
+  devicesIn: B[3],
+  // Typing starts as soon as the phone has landed.
+  typeStart: B[3] + 6,
+  mainTap: B[7],
+  // The first song lands on the TV; a beat later the camera snaps back.
+  mainLand: B[9],
+  zoom: [B[10], B[10] + 10],
+  // Rapid fire: a guest taps every half beat; each song lands a beat later.
+  guestTaps: [B[11], half(11), B[12], half(12)],
+  guestLands: [B[12], half(12), B[13], half(13)],
+  outro: B[16],
+  outroLine2: B[17],
+  end: B[REMOTE_SHOT_BEATS],
+  };
+};
+type Timeline = ReturnType<typeof timeline>;
 
 const MAIN_PHONE = { x: 1440, y: 210 };
 const GUEST_SCALE = 0.62;
@@ -46,24 +63,18 @@ const GUESTS = [
   { x: 1840, y: -200, fromX: 2500, fromY: -200 },
 ];
 
-const guestTap = (i: number) => GUEST_TAP_START + i * GUEST_TAP_STEP;
-const landFrames = [
-  MAIN_TAP + 6 + PULSE_FRAMES,
-  ...GUESTS.map((_, i) => guestTap(i) + 4 + PULSE_FRAMES),
-];
-
 const tvPoint = (row: number): Point => {
   const t = tvRowTarget(row);
   return { x: TV_X + TV_BEZEL + t.x, y: TV_Y + TV_BEZEL + t.y };
 };
 
-const Headline: React.FC = () => {
+const Headline: React.FC<{ T: Timeline }> = ({ T }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const line1 = spring({ frame: frame - 4, fps, config: { damping: 12, stiffness: 180 } });
-  const line2 = spring({ frame: frame - 18, fps, config: { damping: 12, stiffness: 180 } });
-  const rise = interpolate(frame, [56, 86], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
-  const fade = interpolate(frame, [ZOOM_START, ZOOM_START + 18], [1, 0], clamp);
+  const line1 = spring({ frame: frame - T.line1, fps, config: { damping: 12, stiffness: 180 } });
+  const line2 = spring({ frame: frame - T.line2, fps, config: { damping: 12, stiffness: 180 } });
+  const rise = interpolate(frame, T.rise, [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  const fade = interpolate(frame, [T.zoom[0], T.zoom[0] + 6], [1, 0], clamp);
   return (
     <AbsoluteFill
       style={{
@@ -100,13 +111,13 @@ const Headline: React.FC = () => {
   );
 };
 
-const Outro: React.FC = () => {
+const Outro: React.FC<{ T: Timeline }> = ({ T }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const dim = interpolate(frame, [OUTRO, OUTRO + 14], [0, 0.6], clamp);
-  const a = spring({ frame: frame - OUTRO - 4, fps, config: { damping: 12, stiffness: 170 } });
-  const b = spring({ frame: frame - OUTRO - 22, fps, config: { damping: 14 } });
-  if (frame < OUTRO) return null;
+  const dim = interpolate(frame, [T.outro, T.outro + 14], [0, 0.6], clamp);
+  const a = spring({ frame: frame - T.outro, fps, config: { damping: 12, stiffness: 170 } });
+  const b = spring({ frame: frame - T.outroLine2, fps, config: { damping: 14 } });
+  if (frame < T.outro) return null;
   return (
     <AbsoluteFill style={{ background: `rgba(7,6,13,${dim})`, alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
@@ -132,32 +143,35 @@ const Outro: React.FC = () => {
             transform: `translateY(${(1 - b) * 30}px)`,
           }}
         >
-          Nobody installs anything. They just type the code.
+          No app to download. Just the code on the TV.
         </div>
       </div>
     </AbsoluteFill>
   );
 };
 
-export const RemoteShot: React.FC = () => {
+export const RemoteShot: React.FC<{ beats?: BeatFrames }> = ({ beats = evenBeats() }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const T = timeline(beats);
+  const landFrames = [T.mainLand, ...T.guestLands];
 
-  const devicesIn = spring({ frame: frame - DEVICES_IN, fps, config: { damping: 16, stiffness: 110 } });
-  const phoneIn = spring({ frame: frame - DEVICES_IN - 8, fps, config: { damping: 16, stiffness: 110 } });
-  const zoom = interpolate(frame, [ZOOM_START, ZOOM_END], [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  const devicesIn = spring({ frame: frame - T.devicesIn, fps, config: { damping: 14, stiffness: 220 } });
+  const phoneIn = spring({ frame: frame - T.devicesIn - 3, fps, config: { damping: 14, stiffness: 220 } });
+  // A quick snap back rather than a glide: fast in the middle, settling at the end.
+  const zoom = interpolate(frame, T.zoom, [0, 1], { ...clamp, easing: Easing.bezier(0.6, 0, 0.15, 1) });
   // A slow drift in, then the pull-back, then a slow drift through the outro.
-  const drift = interpolate(frame, [DEVICES_IN, ZOOM_START], [1.0, 1.04], clamp);
-  const settle = interpolate(frame, [ZOOM_END, REMOTE_SHOT_FRAMES], [0, 0.03], clamp);
+  const drift = interpolate(frame, [T.devicesIn, T.zoom[0]], [1.0, 1.04], clamp);
+  const settle = interpolate(frame, [T.zoom[1], T.end], [0, 0.03], clamp);
   const camScale = drift * (1 - zoom * 0.3) + settle;
-  const outroBlur = interpolate(frame, [OUTRO, OUTRO + 16], [0, 10], clamp);
+  const outroBlur = interpolate(frame, [T.outro, T.outro + 16], [0, 10], clamp);
   const camX = zoom * 20;
 
   const tvFlash = landFrames.reduce(
     (acc, f) => acc + interpolate(frame - f, [0, 3, 20], [0, 1, 0], clamp),
     0,
   );
-  const mainGlow = interpolate(frame - MAIN_TAP, [0, 4, 24], [0, 1, 0], clamp);
+  const mainGlow = interpolate(frame - T.mainTap, [0, 4, 24], [0, 1, 0], clamp);
 
   const mainTap: Point = {
     x: MAIN_PHONE.x + PHONE_BEZEL + MAIN_TAP_POINT.x,
@@ -178,11 +192,11 @@ export const RemoteShot: React.FC = () => {
           <TvQueueScreen landFrames={landFrames} />
         </Tv>
         <Phone x={MAIN_PHONE.x + (1 - phoneIn) * 500} y={MAIN_PHONE.y} opacity={phoneIn} glow={mainGlow}>
-          <MainPhoneScreen typeStart={TYPE_START} tapFrame={MAIN_TAP} />
+          <MainPhoneScreen typeStart={T.typeStart} tapFrame={T.mainTap} />
         </Phone>
         {GUESTS.map((g, i) => {
-          const enter = spring({ frame: frame - ZOOM_START - 14 - i * 6, fps, config: { damping: 15, stiffness: 120 } });
-          const tap = guestTap(i);
+          const enter = spring({ frame: frame - T.zoom[0] - 2 - i * 2, fps, config: { damping: 16, stiffness: 260 } });
+          const tap = T.guestTaps[i];
           const glow = interpolate(frame - tap, [0, 4, 24], [0, 1, 0], clamp);
           return (
             <Phone
@@ -197,7 +211,13 @@ export const RemoteShot: React.FC = () => {
             </Phone>
           );
         })}
-        <Pulse from={mainTap} to={tvPoint(0)} start={MAIN_TAP + 6} duration={PULSE_FRAMES} lift={220} />
+        <Pulse
+          from={mainTap}
+          to={tvPoint(0)}
+          start={T.mainTap + 4}
+          duration={T.mainLand - T.mainTap - 4}
+          lift={220}
+        />
         {GUESTS.map((g, i) => (
           <Pulse
             key={i}
@@ -206,17 +226,15 @@ export const RemoteShot: React.FC = () => {
               y: g.y + (PHONE_BEZEL + GUEST_TAP_POINT.y) * GUEST_SCALE,
             }}
             to={tvPoint(i + 1)}
-            start={guestTap(i) + 4}
-            duration={PULSE_FRAMES}
+            start={T.guestTaps[i] + 3}
+            duration={T.guestLands[i] - T.guestTaps[i] - 3}
             lift={g.y < 0 ? 120 : 200}
           />
         ))}
       </AbsoluteFill>
-      <Headline />
-      <Outro />
+      <Headline T={T} />
+      <Outro T={T} />
       <Overlay />
     </AbsoluteFill>
   );
 };
-
-

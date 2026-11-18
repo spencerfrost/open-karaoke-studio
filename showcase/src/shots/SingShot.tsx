@@ -5,14 +5,14 @@ import { Cover, Phone, PHONE_SCREEN_W, TV_SCREEN_H, TV_SCREEN_W, Tv } from "../c
 import lyrics from "../data/lyrics.json";
 import { QUEUE } from "../songs";
 import beatGrid from "../data/beats.json";
-import { CATPPUCCIN, CYBERPUNK, RETRO, Theme, ThemeContext, primaryGlow, useTheme } from "../themes";
+import { CATPPUCCIN, CYBERPUNK, RETRO, Theme, VINTAGE, ThemeContext, primaryGlow, useTheme } from "../themes";
 
 /**
  * The money shot. Maya's song plays on the TV with the lyrics lighting up
  * word by word (the app's own word timings). On her phone she drags
  * "Original singer" up and the voice comes back, then drops it to zero and
  * sings it herself. Then "MAKE IT YOURS.": the whole frame flips theme every
- * two beats, Cyberpunk → Retro → Catppuccin → Cyberpunk.
+ * two beats, Cyberpunk → Retro → Catppuccin → Vintage → Cyberpunk.
  */
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -37,9 +37,11 @@ const FADE_LINE = LINES.findIndex((l) => l.text.startsWith("Take a step"));
 /** Song time (s) of the first word sung with the singer up. */
 export const FIRST_WORD_TIME = LINES[FIRST_SUNG].start;
 
-// "Original singer" fader moves, in song time: up just before the first word,
+// "Original singer" fader moves, in song time: up in the middle of the line
+// before (after "Don't wait,"), so the voice is already there for "Get out";
 // down across the fade line so you hear it disappear.
-const UP = [FIRST_WORD_TIME - 0.65, FIRST_WORD_TIME - 0.05];
+const LEAD_IN = LINES[FIRST_SUNG - 1].words!;
+const UP = [LEAD_IN[1].end, LEAD_IN[3].end];
 const DOWN = [LINES[FADE_LINE].start + 0.2, LINES[FADE_LINE].start + 1.6];
 
 /** The "Original singer" fader, 0–1, at a song time. Drives the audio too. */
@@ -201,16 +203,18 @@ const BEATS: number[] = beatGrid.beats;
 const nearestBeat = (t: number) =>
   BEATS.reduce((best, b, i) => (Math.abs(b - t) < Math.abs(BEATS[best] - t) ? i : best), 0);
 
-/** The downbeat a bar after "Gotta move with the groove" begins. */
-const MAKE_BEAT = nearestBeat(LINES[FADE_LINE + 1].start + 2.6);
+const THEME_RUN: Theme[] = [CYBERPUNK, RETRO, CATPPUCCIN, VINTAGE, CYBERPUNK];
+const BEATS_PER_THEME = 2;
+/** The shot ends three bars after "Gotta move with the groove" begins. */
+const END_BEAT = nearestBeat(LINES[FADE_LINE + 1].start + 2.6) + 8;
+/** "MAKE IT YOURS." lands early enough for every theme to get its two beats. */
+const MAKE_BEAT = END_BEAT - THEME_RUN.length * BEATS_PER_THEME;
 /** Song time "MAKE IT YOURS." lands. */
 export const MAKE_TIME = BEATS[MAKE_BEAT];
-const THEME_RUN: Theme[] = [CYBERPUNK, RETRO, CATPPUCCIN, CYBERPUNK];
-const BEATS_PER_THEME = 2;
 /** Song time each theme in the run starts. */
 const THEME_TIMES = THEME_RUN.map((_, i) => BEATS[MAKE_BEAT + i * BEATS_PER_THEME]);
 /** Song time the shot ends: the downbeat after the last theme. */
-export const SING_END_TIME = BEATS[MAKE_BEAT + THEME_RUN.length * BEATS_PER_THEME];
+export const SING_END_TIME = BEATS[END_BEAT];
 
 const themeAt = (t: number) => {
   let theme = CYBERPUNK;

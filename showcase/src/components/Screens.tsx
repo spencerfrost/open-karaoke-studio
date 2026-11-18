@@ -220,6 +220,8 @@ export const TvQueueScreen: React.FC<{ landFrames: number[] }> = ({ landFrames }
 // ---------------------------------------------------------------------------
 
 const SEARCH_TEXT = "don't blink";
+/** Frames per typed character. */
+const TYPE_FRAMES = 3;
 export const MAIN_RESULT_TOP = 176;
 export const MAIN_RESULT_H = 78;
 /** Screen-space centre of the result the first singer taps. */
@@ -234,8 +236,8 @@ const RESULTS: { title: string; artist: string; hues: [number, number] }[] = [
 export const MainPhoneScreen: React.FC<{ typeStart: number; tapFrame: number }> = ({ typeStart, tapFrame }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const typed = Math.max(0, Math.min(SEARCH_TEXT.length, Math.floor((frame - typeStart) / 4)));
-  const typeEnd = typeStart + SEARCH_TEXT.length * 4;
+  const typed = Math.max(0, Math.min(SEARCH_TEXT.length, Math.floor((frame - typeStart) / TYPE_FRAMES)));
+  const typeEnd = typeStart + SEARCH_TEXT.length * TYPE_FRAMES;
   const caretOn = Math.floor(frame / 8) % 2 === 0 || (frame >= typeStart && frame < typeEnd);
   const tapped = frame >= tapFrame;
   const ripple = interpolate(frame - tapFrame, [0, 18], [0, 1], clamp);
@@ -267,12 +269,14 @@ export const MainPhoneScreen: React.FC<{ typeStart: number; tapFrame: number }> 
           padding: "0 14px",
           fontFamily: font.body,
           fontWeight: 500,
-          fontSize: 22,
+          fontSize: 20,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
           color: typed > 0 ? color.ink : color.faint,
           boxShadow: frame >= typeStart ? "0 0 14px rgba(255,42,109,0.35)" : "none",
         }}
       >
-        {typed > 0 ? SEARCH_TEXT.slice(0, typed) : "Search YouTube"}
+        {typed > 0 ? SEARCH_TEXT.slice(0, typed) : "What do you want to sing?"}
         {frame >= typeStart && caretOn && (
           <span style={{ width: 2, height: 26, background: color.ink, marginLeft: 2 }} />
         )}

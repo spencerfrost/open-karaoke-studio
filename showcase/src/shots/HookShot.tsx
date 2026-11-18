@@ -1,23 +1,43 @@
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate, random, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { BeatFrames, evenBeats } from "../beats";
 import { Backdrop, Overlay } from "../components/Backdrop";
 import { Cover, TV_H, TV_W, Tv } from "../components/Devices";
 import { color, font } from "../theme";
+import { TV_STABS } from "./SplitShot";
 
 /**
- * The opening: "KARAOKE NIGHT." → "ANY SONG." over a rushing wall of covers →
- * "YOUR TV." as the TV arrives and lights up with the logo → the camera
- * pushes through the screen into the dark, where the remote shot begins.
+ * The opening and the TV, two blocks that used to be one shot.
+ *
+ * OpenShot: "KARAOKE NIGHT." → "ANY SONG." over a rushing wall of covers.
+ * TvShot: "HOSTED ON YOUR TV." slams in and rises to a header; on the
+ * song's three chord stabs the TV pops in, its screen powers on with the
+ * bunny, and the name lands; then the camera pushes through the screen into
+ * the next shot.
  */
-export const HOOK_SHOT_FRAMES = 210;
+export const OPEN_SHOT_BEATS = 6;
+export const TV_SHOT_BEATS = 6;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-const NIGHT_IN = 4;
-const SONG_IN = 40;
-const TV_IN = 92;
-const LOGO_IN = 122;
-const PUSH_START = 172;
+/** OpenShot's timeline, in frames, from its beats. */
+const openTimeline = (B: BeatFrames) => ({ nightIn: B[0], songIn: B[2], end: B[OPEN_SHOT_BEATS] });
+type OpenTimeline = ReturnType<typeof openTimeline>;
+
+/** TvShot's timeline, in frames, from its beats and the three stabs. */
+const timeline = (B: BeatFrames, [tvIn, screenOn, nameIn]: number[]) => ({
+  hostedIn: B[0],
+  // The headline is up out of the way just before the TV pops in.
+  rise: [tvIn - 9, tvIn - 1],
+  tvIn,
+  screenOn,
+  nameIn,
+  pushStart: B[5],
+  end: B[TV_SHOT_BEATS],
+});
+/** Song time the TV shot starts at when rendered on its own. */
+const TV_STANDALONE_START = 20.2;
+type Timeline = ReturnType<typeof timeline>;
 
 const Slam: React.FC<{ text: string; start: number; end: number; accent?: boolean; y?: number }> = ({
   text,
@@ -51,11 +71,11 @@ const Slam: React.FC<{ text: string; start: number; end: number; accent?: boolea
 };
 
 /** Rows of covers streaming sideways, alternating direction: "any song". */
-const CoverWall: React.FC = () => {
+const CoverWall: React.FC<{ T: OpenTimeline }> = ({ T }) => {
   const frame = useCurrentFrame();
-  const t = frame - SONG_IN;
-  if (t < -2 || frame >= TV_IN + 6) return null;
-  const opacity = interpolate(frame, [SONG_IN - 2, SONG_IN + 6, TV_IN - 4, TV_IN + 6], [0, 0.4, 0.4, 0], clamp);
+  const t = frame - T.songIn;
+  if (t < -2) return null;
+  const opacity = interpolate(frame, [T.songIn - 2, T.songIn + 6, T.end - 4, T.end], [0, 0.4, 0.4, 0], clamp);
   const rows = 6;
   const size = 170;
   const gap = 22;
@@ -88,53 +108,52 @@ const CoverWall: React.FC = () => {
   );
 };
 
-const LogoScreen: React.FC = () => {
+/** The TV's screen: dark until the second stab powers it on with the bunny; the name lands on the third. */
+const LogoScreen: React.FC<{ T: Timeline }> = ({ T }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const on = interpolate(frame, [LOGO_IN - 4, LOGO_IN + 2], [0, 1], clamp);
-  const bunny = spring({ frame: frame - LOGO_IN, fps, config: { damping: 10, stiffness: 160 } });
-  const word = spring({ frame: frame - LOGO_IN - 8, fps, config: { damping: 14 } });
-  const tag = spring({ frame: frame - LOGO_IN - 18, fps, config: { damping: 16 } });
+  // Power-on: a bright line that opens to the full screen in a few frames.
+  const open = interpolate(frame, [T.screenOn - 1, T.screenOn + 3], [0, 1], { ...clamp, easing: Easing.out(Easing.cubic) });
+  const line = interpolate(frame, [T.screenOn - 1, T.screenOn, T.screenOn + 5], [0, 1, 0], clamp);
+  const bunny = spring({ frame: frame - T.screenOn, fps, config: { damping: 9, stiffness: 200 } });
+  const word = spring({ frame: frame - T.nameIn, fps, config: { damping: 11, stiffness: 220 } });
+  const wordFlash = interpolate(frame, [T.nameIn, T.nameIn + 2, T.nameIn + 10], [0, 1, 0], clamp);
   return (
     <AbsoluteFill style={{ background: color.void, alignItems: "center", justifyContent: "center" }}>
-      <AbsoluteFill
-        style={{
-          opacity: on,
-          background: "radial-gradient(ellipse at 50% 60%, rgba(122,4,235,0.55), transparent 65%)",
-        }}
-      />
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", opacity: on }}>
-        <Img
-          src={staticFile("bunny.png")}
-          style={{ width: 230, height: 230, transform: `scale(${bunny}) rotate(${(1 - bunny) * -12}deg)` }}
+      <AbsoluteFill style={{ transform: `scaleY(${open})`, opacity: open > 0 ? 1 : 0 }}>
+        <AbsoluteFill
+          style={{ background: "radial-gradient(ellipse at 50% 60%, rgba(122,4,235,0.6), transparent 65%)" }}
         />
-        <div
-          style={{
-            marginTop: 8,
-            fontFamily: font.display,
-            fontSize: 58,
-            color: color.magenta,
-            textShadow: "0 0 30px rgba(255,42,109,0.6)",
-            opacity: word,
-            transform: `translateY(${(1 - word) * 24}px)`,
-            letterSpacing: 2,
-          }}
-        >
-          OPEN KARAOKE STUDIO
-        </div>
-        <div
-          style={{
-            marginTop: 10,
-            fontFamily: font.body,
-            fontWeight: 500,
-            fontSize: 30,
-            color: color.dim,
-            opacity: tag,
-          }}
-        >
-          Karaoke for a night in with friends.
-        </div>
-      </div>
+        <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+          <Img
+            src={staticFile("bunny.png")}
+            style={{
+              width: 250,
+              height: 250,
+              marginTop: -40,
+              transform: `scale(${bunny}) rotate(${(1 - bunny) * -14}deg)`,
+            }}
+          />
+          <div
+            style={{
+              marginTop: 10,
+              fontFamily: font.display,
+              fontSize: 64,
+              color: color.magenta,
+              textShadow: `0 0 ${30 + wordFlash * 40}px rgba(255,42,109,${0.6 + wordFlash * 0.4})`,
+              opacity: frame >= T.nameIn ? Math.min(1, word * 1.4) : 0,
+              transform: `scale(${1.2 - word * 0.2})`,
+              letterSpacing: 2,
+            }}
+          >
+            OPEN KARAOKE STUDIO
+          </div>
+        </AbsoluteFill>
+      </AbsoluteFill>
+      {/* The power-on line */}
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", opacity: line }}>
+        <div style={{ width: "100%", height: 6, background: "#fff", boxShadow: "0 0 40px #fff, 0 0 80px rgba(255,42,109,0.9)" }} />
+      </AbsoluteFill>
       <AbsoluteFill
         style={{
           backgroundImage: "repeating-linear-gradient(to bottom, rgba(255,255,255,0.035) 0 1px, transparent 1px 3px)",
@@ -144,59 +163,87 @@ const LogoScreen: React.FC = () => {
   );
 };
 
-export const HookShot: React.FC = () => {
+/** "HOSTED ON YOUR TV.": slams in centred like the others, then rises to a header over the TV. */
+const Hosted: React.FC<{ T: Timeline; push: number }> = ({ T, push }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const tvIn = spring({ frame: frame - TV_IN, fps, config: { damping: 15, stiffness: 120 } });
-  // Push through the TV screen: scale around the screen's centre until it fills the frame and beyond.
-  const push = interpolate(frame, [PUSH_START, HOOK_SHOT_FRAMES], [0, 1], {
-    ...clamp,
-    easing: Easing.in(Easing.cubic),
-  });
-  const tvScale = (0.55 + tvIn * 0.25) * (1 + push * 5);
-  const tvTop = (1080 - TV_H) / 2 - 20;
-  const caption = interpolate(frame, [TV_IN + 4, TV_IN + 12, LOGO_IN + 26, LOGO_IN + 36], [0, 1, 1, 0], clamp);
-  const darkOut = interpolate(frame, [HOOK_SHOT_FRAMES - 10, HOOK_SHOT_FRAMES], [0, 1], clamp);
+  if (frame < T.hostedIn) return null;
+  const s = spring({ frame: frame - T.hostedIn, fps, config: { damping: 11, stiffness: 200 } });
+  const rise = interpolate(frame, T.rise, [0, 1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
+  return (
+    <AbsoluteFill
+      style={{
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: s * (1 - push * 3),
+        transform: `translateY(${rise * -420}px) scale(${(1.25 - s * 0.25) * (1 - rise * 0.38)})`,
+      }}
+    >
+      <div style={{ fontFamily: font.display, fontSize: 120, color: color.ink, letterSpacing: 2, whiteSpace: "nowrap" }}>
+        HOSTED ON YOUR{" "}
+        <span style={{ color: color.magenta, textShadow: "0 0 50px rgba(255,42,109,0.65)" }}>TV.</span>
+      </div>
+    </AbsoluteFill>
+  );
+};
 
+export const OpenShot: React.FC<{ beats?: BeatFrames }> = ({ beats = evenBeats() }) => {
+  const frame = useCurrentFrame();
+  const T = openTimeline(beats);
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       <Backdrop />
-      <CoverWall />
-      {frame >= SONG_IN && frame < TV_IN && (
+      <CoverWall T={T} />
+      {frame >= T.songIn && (
         <AbsoluteFill
           style={{ background: "radial-gradient(ellipse 55% 35% at center, rgba(7,6,13,0.92), rgba(7,6,13,0.2) 80%)" }}
         />
       )}
-      <Slam text="KARAOKE NIGHT." start={NIGHT_IN} end={SONG_IN} />
-      <Slam text="ANY SONG." start={SONG_IN} end={TV_IN} accent />
-      {frame >= TV_IN && (
+      <Slam text="KARAOKE NIGHT." start={T.nightIn} end={T.songIn} />
+      <Slam text="ANY SONG." start={T.songIn} end={T.end} accent />
+      <Overlay />
+    </AbsoluteFill>
+  );
+};
+
+export const TvShot: React.FC<{ beats?: BeatFrames; stabs?: number[] }> = ({ beats = evenBeats(), stabs }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const T = timeline(beats, stabs ?? TV_STABS.map((t) => Math.round((t - TV_STANDALONE_START) * fps)));
+  // The TV pops up into place on its beat.
+  const tvIn = spring({ frame: frame - T.tvIn, fps, config: { damping: 12, stiffness: 240 } });
+  // Push through the TV screen: scale around the screen's centre until it fills the frame and beyond.
+  const push = interpolate(frame, [T.pushStart, T.end], [0, 1], {
+    ...clamp,
+    easing: Easing.in(Easing.cubic),
+  });
+  const tvScale = 0.9 * (1 + push * 5);
+  const tvTop = (1080 - TV_H) / 2 + 30;
+  const tvFlash =
+    interpolate(frame, [T.screenOn, T.screenOn + 3, T.screenOn + 16], [0, 1, 0.25], clamp) +
+    interpolate(frame, [T.nameIn, T.nameIn + 3, T.nameIn + 14], [0, 0.8, 0], clamp);
+  const darkOut = interpolate(frame, [T.end - 6, T.end], [0, 1], clamp);
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      <Backdrop />
+      {frame >= T.tvIn && (
         <AbsoluteFill
           style={{
-            opacity: tvIn,
-            transform: `scale(${tvScale})`,
+            opacity: Math.min(1, tvIn * 2),
+            transform: `translateY(${(1 - tvIn) * 240}px) scale(${tvScale})`,
             transformOrigin: `960px ${tvTop + TV_H / 2}px`,
           }}
         >
           {/* Tv renders at TV_X; shift it so it's centred in the frame. */}
           <div style={{ position: "absolute", left: (1920 - TV_W) / 2 - 150, top: 0 }}>
-            <Tv y={tvTop} flash={interpolate(frame, [LOGO_IN, LOGO_IN + 4, LOGO_IN + 30], [0, 1, 0.2], clamp)}>
-              <LogoScreen />
+            <Tv y={tvTop} flash={Math.min(tvFlash, 1)}>
+              <LogoScreen T={T} />
             </Tv>
           </div>
         </AbsoluteFill>
       )}
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: 70, opacity: caption }}>
-        <div
-          style={{
-            fontFamily: font.display,
-            fontSize: 84,
-            color: color.ink,
-            transform: `scale(${1.1 - caption * 0.1})`,
-          }}
-        >
-          YOUR <span style={{ color: color.magenta, textShadow: "0 0 40px rgba(255,42,109,0.6)" }}>TV.</span>
-        </div>
-      </AbsoluteFill>
+      <Hosted T={T} push={push} />
       <AbsoluteFill style={{ background: color.void, opacity: darkOut }} />
       <Overlay />
     </AbsoluteFill>

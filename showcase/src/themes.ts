@@ -12,10 +12,10 @@ const jetbrains = loadJetBrainsMono("normal", { weights: ["400", "700"], subsets
 
 /**
  * The app's themes as the video draws them: the tokens from
- * frontend/src/index.css (`:root` is Retro) that the redrawn screens use.
+ * frontend/src/index.css ([data-theme] blocks) that the redrawn screens use.
  */
 export interface Theme {
-  id: "cyberpunk" | "retro" | "catppuccin";
+  id: "cyberpunk" | "retro" | "vintage" | "catppuccin";
   label: string;
   /** The page / screen background (CSS background). */
   page: string;
@@ -68,9 +68,9 @@ export const CYBERPUNK: Theme = {
   texture: "scanlines",
 };
 
-export const RETRO: Theme = {
-  id: "retro",
-  label: "Retro",
+export const VINTAGE: Theme = {
+  id: "vintage",
+  label: "Vintage",
   // --page-bg: russet → rust, with the background mixed half into black.
   page: "radial-gradient(circle at 50% 45%, rgba(253,154,2,0.16), transparent 60%), linear-gradient(135deg, #774320 0%, #b44819 100%)",
   sunk: "rgba(8,7,5,0.35)",
@@ -89,6 +89,29 @@ export const RETRO: Theme = {
   bodyWidth: 1.3,
   neon: false,
   texture: "grain",
+};
+
+/** Retro: a flat warm near-black page, cream text, orange buttons, no decoration. */
+export const RETRO: Theme = {
+  id: "retro",
+  label: "Retro",
+  page: "#121110",
+  sunk: "#181614",
+  panel: "#1f1d1a",
+  ink: "#f5f3c7",
+  dim: "rgba(245,243,199,0.7)",
+  faint: "rgba(245,243,199,0.45)",
+  primary: "#fd9a02",
+  primaryRgb: "253,154,2",
+  haloRgb: "226,178,74",
+  display: syne,
+  body: manrope,
+  mono: vt323,
+  monoScale: 1.4,
+  radius: 8,
+  bodyWidth: 1.3,
+  neon: false,
+  texture: "none",
 };
 
 export const CATPPUCCIN: Theme = {
