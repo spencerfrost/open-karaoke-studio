@@ -1031,9 +1031,11 @@ def _save_word_timing_version(song_id: str, result: Mapping[str, Any]) -> None:
     """Record that this version of alignment reached an answer for the song.
 
     Any answer counts, "no lyrics found" included, so a song isn't aligned
-    again each time it's queued to sing (app.jobs.song_updates).
+    again each time it's queued to sing (app.jobs.song_updates). A run with
+    nothing to show because its alignment attempts raised isn't an answer.
     """
-    if result.get("status") in _NOT_LOOKED_AT:
+    status = result.get("status")
+    if status in _NOT_LOOKED_AT or (status == "no_result" and result.get("errors")):
         return
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository

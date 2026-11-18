@@ -154,6 +154,20 @@ def test_other_errors_are_not_out_of_memory():
     assert not is_cuda_out_of_memory(ValueError("no words"))
 
 
+def test_the_machine_running_out_of_ram_is_not_a_full_gpu():
+    assert not is_cuda_out_of_memory(RuntimeError("ffmpeg: out of memory"))
+
+
+def test_an_error_raised_while_handling_a_full_gpu_is_itself():
+    try:
+        try:
+            raise CT2_OOM
+        except RuntimeError:
+            raise ValueError("no lyrics to fall back on")
+    except ValueError as outer:
+        assert not is_cuda_out_of_memory(outer)
+
+
 def test_language_detection_lets_a_full_gpu_through(tmp_path):
     from app.services.lyrics_language import detect_vocals_language
 
@@ -186,6 +200,30 @@ def test_measuring_logs_the_cards_peak():
     assert "3000 MiB at start" in line
     assert "5288 MiB free at the tightest" in line
     pynvml.nvmlShutdown.assert_called_once()
+
+
+def test_measuring_records_the_peak_in_the_lyrics_event_log():
+    mib = 1024 * 1024
+    readings = iter([3000 * mib, 7000 * mib])
+    pynvml = Mock()
+    pynvml.nvmlDeviceGetMemoryInfo.side_effect = lambda _handle: Mock(
+        total=12288 * mib, used=next(readings, 5000 * mib)
+    )
+
+    with (
+        patch.dict("sys.modules", {"pynvml": pynvml}),
+        patch("app.services.gpu_memory.log_lyrics_event") as log_event,
+    ):
+        with track_gpu_memory("separation", SONG_ID):
+            pass
+
+    song_id, event = log_event.call_args.args
+    fields = log_event.call_args.kwargs
+    assert (song_id, event) == (SONG_ID, "gpu_memory_peak")
+    assert fields["task"] == "separation"
+    assert fields["card_peak_mib"] == 7000
+    assert fields["card_total_mib"] == 12288
+    assert fields["tightest_free_mib"] == 5288
 
 
 def test_a_nearly_full_card_is_a_warning():

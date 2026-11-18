@@ -452,7 +452,7 @@ would hit the same full GPU) and reaches the task.
 
 **Transient failures retry.** In both `process_youtube_job` and `process_audio_job`, a failure that
 `is_transient_processing_error` ([jobs/exceptions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/exceptions.py))
-recognises — GPU out of memory (`is_cuda_out_of_memory`, shared with lyrics alignment), or a network-level download error (DNS, timeouts, resets, HTTP
+recognises — GPU out of memory (`is_cuda_out_of_memory`, shared with lyrics alignment; the error has to name CUDA, so the machine's own RAM running out doesn't count), or a network-level download error (DNS, timeouts, resets, HTTP
 5xx) — parks the job as `PENDING` with a "trying again in N min" message and calls `self.retry`
 after 1, 5, then 15 minutes. The song stays `processing` throughout. A retry reuses the
 already-downloaded `original.mp3`; first attempts always download. Only once retries run out does
@@ -473,7 +473,9 @@ ends:
 The card numbers include every other process on it (the other worker, dev's workers, the
 desktop), which is what decides whether the next allocation fits. The torch number is this
 process's own peak, and misses faster-whisper's models. Under 1 GiB free at the tightest moment
-logs as a warning.
+logs as a warning. The same numbers are written to `logs/lyrics_timing.jsonl` as a
+`gpu_memory_peak` event, which is recorded whatever `LOG_LEVEL` is, so prod (which logs warnings
+only) still has every run's peak.
 
 In practice new songs never pick an engine: `POST /api/songs/from-youtube` sends none, so
 `download_and_process_async` uses its `"three_track"` default. The other six are reachable only

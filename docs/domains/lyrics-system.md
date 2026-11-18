@@ -784,7 +784,7 @@ Every step of a lyrics run emits a structured event through `log_lyrics_event`
 ([lyrics_timing.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_timing.py)) into `logs/lyrics_timing.jsonl`:
 attempts built, each candidate's score, sweep results, re-time match ratios, report outcomes.
 When a song's lyrics look wrong, grep that file for the song id first. A full GPU shows there as
-`lyrics_gpu_full`, and each run logs one `[GPU]` line with how full the card got (see
+`lyrics_gpu_full`, and each run records how full the card got as a `gpu_memory_peak` event (see
 [ingestion](./ingestion-pipeline.md)).
 
 Environment knobs: `LYRICS_ALIGNMENT_DEVICE` (`auto`/`cuda`/`cpu`), `LYRICS_ASR_PROVIDER`
