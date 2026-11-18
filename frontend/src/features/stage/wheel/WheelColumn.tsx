@@ -163,7 +163,7 @@ const WheelColumn: React.FC<WheelColumnProps> = ({
         <div
           className={cn(
             "absolute inset-x-0 top-0 z-[3] truncate px-7 pb-3.5 pt-5 font-display text-lg font-bold uppercase tracking-[0.14em]",
-            active ? "text-primary" : "text-foreground-dim",
+            active ? "text-selected" : "text-foreground-dim",
           )}
         >
           {header ?? label}

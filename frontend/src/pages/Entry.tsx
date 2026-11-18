@@ -307,7 +307,7 @@ const Entry: React.FC = () => {
               <>
                 <div className="flex flex-1 flex-col items-center justify-center gap-1 py-10 text-center">
                   <p className="text-foreground-dim">You're joining</p>
-                  <p className="font-accent text-[7rem] leading-none tracking-[0.14em] pl-[0.14em] text-primary [text-shadow:var(--glow-primary)]">
+                  <p className="font-accent text-[7rem] leading-none tracking-[0.14em] pl-[0.14em] text-accent [text-shadow:var(--glow-primary)]">
                     {codeFromUrl}
                   </p>
                   <p className="text-foreground-dim">the karaoke on the TV</p>

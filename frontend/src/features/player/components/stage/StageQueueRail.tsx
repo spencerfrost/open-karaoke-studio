@@ -39,7 +39,7 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
       <div className={cn(cardClass, "shrink-0")}>
         <span className={railLabelClass}>Singing Now</span>
         <div className="flex items-center gap-3">
-          <Mic className="size-6 shrink-0 text-primary" />
+          <Mic className="size-6 shrink-0 text-secondary" />
           <span className="min-w-0 truncate font-display text-2xl font-bold text-foreground">
             {current?.singer ?? "—"}
           </span>

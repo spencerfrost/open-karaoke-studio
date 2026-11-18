@@ -165,7 +165,7 @@ const PhoneMoreSheet: React.FC<PhoneMoreSheetProps> = ({
                     <ToggleGroupItem
                       key={size}
                       value={size}
-                      className="h-13 w-full rounded-md border border-glass-border/20 text-lg font-semibold text-foreground data-[state=on]:border-primary data-[state=on]:bg-primary/15 data-[state=on]:text-foreground"
+                      className="h-13 w-full rounded-md border border-glass-border/20 text-lg font-semibold text-foreground data-[state=on]:border-selected data-[state=on]:bg-selected/15 data-[state=on]:text-foreground"
                     >
                       {getLyricsSizeLabel(size)}
                     </ToggleGroupItem>

@@ -88,7 +88,7 @@ export const ProcessingTrackerRow: React.FC<ProcessingTrackerRowProps> = ({
           </ItemTitle>
         )}
         {outcome === "ready" && (
-          <ItemDescription className="text-primary">
+          <ItemDescription className="text-success">
             Ready to sing
           </ItemDescription>
         )}

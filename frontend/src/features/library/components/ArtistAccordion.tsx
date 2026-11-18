@@ -5,6 +5,8 @@ import AlphabeticalIndexBar from "./AlphabeticalIndexBar";
 import AlphabeticalNavigation from "./AlphabeticalNavigation";
 import { useAuthStore } from "@/stores/authStore";
 import { Artist } from "@/hooks/api/useArtists";
+import { swatchTile } from "@/lib/swatch";
+import { cn } from "@/lib/utils";
 
 interface ArtistAccordionProps {
   artists: Artist[];
@@ -128,11 +130,10 @@ const ArtistAccordion: React.FC<ArtistAccordionProps> = ({
             return (
               <div key={letter} id={`artist-section-${letter}`}>
                 <div
-                  className={`sticky top-0 px-3 py-2 mb-3 z-10
-                  flex items-center justify-center
-                  rounded-full w-12 h-12
-                  font-bold text-lg bg-tint/50 text-primary
-                  `}
+                  className={cn(
+                    "sticky top-0 px-3 py-2 mb-3 z-10 flex items-center justify-center rounded-full w-12 h-12 font-bold text-lg",
+                    swatchTile(letter),
+                  )}
                 >
                   {letter}
                 </div>

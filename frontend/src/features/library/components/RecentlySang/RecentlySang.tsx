@@ -48,7 +48,7 @@ const RecentlySang: React.FC = () => {
               size="sm"
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               disabled={currentPage === 0}
-              className="text-primary hover:bg-primary/20 disabled:opacity-30"
+              className="text-foreground-dim hover:bg-surface-hover hover:text-foreground disabled:opacity-30"
             >
               <ChevronLeft size={16} />
               Previous
@@ -61,7 +61,7 @@ const RecentlySang: React.FC = () => {
               size="sm"
               onClick={() => setOffset(offset + PAGE_SIZE)}
               disabled={currentPage >= totalPages - 1}
-              className="text-primary hover:bg-primary/20 disabled:opacity-30"
+              className="text-foreground-dim hover:bg-surface-hover hover:text-foreground disabled:opacity-30"
             >
               Next
               <ChevronRight size={16} />

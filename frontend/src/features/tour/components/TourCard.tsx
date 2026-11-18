@@ -61,7 +61,7 @@ const TourCard: React.FC<TourCardProps> = ({
                   href={docs}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-primary underline-offset-4 hover:underline"
+                  className="text-secondary underline-offset-4 hover:underline"
                 >
                   Read the docs
                 </a>

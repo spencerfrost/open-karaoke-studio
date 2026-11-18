@@ -30,7 +30,7 @@ const MixCard: React.FC<MixCardProps> = ({ className }) => {
     // short even for that they must clip rather than draw over the lyrics card.
     <div className={cardClass(cn("min-h-0 overflow-hidden", className))}>
       <div className="flex items-center gap-2.5">
-        <SlidersHorizontal className={cn(cardIconClass, "text-primary")} />
+        <SlidersHorizontal className={cn(cardIconClass, "text-secondary")} />
         <span className={cardLabelClass}>Mix</span>
       </div>
 

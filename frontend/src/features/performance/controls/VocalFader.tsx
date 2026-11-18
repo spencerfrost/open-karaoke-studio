@@ -47,7 +47,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
     >
       {/* Name row — the mute lives here, not as a separate button */}
       <div className="flex w-full items-center gap-1">
-        <span className="shrink-0 text-primary">
+        <span className="shrink-0 text-secondary">
           {React.cloneElement(
             icon as React.ReactElement<{ className?: string }>,
             { className: "size-4.5" },
@@ -72,7 +72,7 @@ const VocalFader: React.FC<VocalFaderProps> = ({
         </Button>
       </div>
 
-      <div className="font-accent text-[2rem] leading-none text-primary">
+      <div className="font-accent text-[2rem] leading-none text-accent">
         {Math.round(volume * 100)}%
       </div>
 

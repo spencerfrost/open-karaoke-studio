@@ -227,7 +227,7 @@ const Stage: React.FC = () => {
   if (isRecovering || isResumingAccountSession) {
     return (
       <StageFrame>
-        <h1 className="text-center text-4xl font-bold text-primary">
+        <h1 className="text-center text-4xl font-bold text-foreground">
           Restoring Session
         </h1>
         <p className="max-w-md text-center text-xl text-muted-foreground">
@@ -238,7 +238,7 @@ const Stage: React.FC = () => {
             {recoveryError || connectionError}
           </div>
         )}
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-secondary" />
       </StageFrame>
     );
   }
@@ -249,11 +249,11 @@ const Stage: React.FC = () => {
     return (
       <StageFrame>
         {hasInitialized ? (
-          <h1 className="text-center text-4xl font-bold text-primary">
+          <h1 className="text-center text-4xl font-bold text-foreground">
             Your demo has ended
           </h1>
         ) : (
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-secondary" />
         )}
       </StageFrame>
     );

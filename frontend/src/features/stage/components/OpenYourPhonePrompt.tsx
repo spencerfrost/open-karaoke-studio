@@ -83,9 +83,9 @@ const OpenYourPhonePrompt: React.FC<OpenYourPhonePromptProps> = ({
     <div className="pointer-events-none absolute inset-x-0 top-6 z-30 flex justify-center px-6">
       <Alert
         data-tour="open-your-phone"
-        className="pointer-events-auto w-auto max-w-xl border-primary/60 px-6 py-4 shadow-lg [&>svg]:size-6"
+        className="pointer-events-auto w-auto max-w-xl border-secondary/60 px-6 py-4 shadow-lg [&>svg]:size-6"
       >
-        <Smartphone className="text-primary" />
+        <Smartphone className="text-secondary" />
         <AlertTitle className="text-xl">
           {current.singer}, open your phone
         </AlertTitle>

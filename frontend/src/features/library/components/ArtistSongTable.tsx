@@ -11,6 +11,8 @@ import { useSongDialogs } from "@/features/songs/hooks/useSongDialogs";
 import { SongManagementDialog } from "@/features/songs/components/song-details/SongManagementDialog";
 import { DeleteSongDialog } from "@/features/songs/components/DeleteSongDialog";
 import { QueueSingerDialog } from "@/features/songs/components/song-card/QueueSingerDialog";
+import { swatchTile } from "@/lib/swatch";
+import { cn } from "@/lib/utils";
 
 function formatDuration(seconds?: number): string {
   if (!seconds) return "";
@@ -48,7 +50,12 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
   return (
     <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-surface-hover group">
       {/* Thumbnail */}
-      <div className="w-9 h-9 rounded flex-shrink-0 overflow-hidden bg-primary/20 flex items-center justify-center">
+      <div
+        className={cn(
+          "w-9 h-9 rounded flex-shrink-0 overflow-hidden flex items-center justify-center",
+          swatchTile(song.id),
+        )}
+      >
         {artworkUrl && !imgError ? (
           <img
             src={artworkUrl}
@@ -58,7 +65,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
             onError={() => setImgError(true)}
           />
         ) : (
-          <Music size={14} className="text-primary/60" />
+          <Music size={14} />
         )}
       </div>
 
@@ -77,7 +84,7 @@ const SongTableRow: React.FC<SongTableRowProps> = ({ song }) => {
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 text-accent"
+          className="size-7"
           aria-label="Add to karaoke queue"
           onClick={handleQueueClick}
           disabled={isBlockingProcessing}

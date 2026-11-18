@@ -142,7 +142,7 @@ export const LyricsResults: React.FC<LyricsResultsProps> = ({
       <div
         className={`flex flex-col items-center justify-center py-8 ${className}`}
       >
-        <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin mb-4 text-secondary" />
         <p className="text-center font-medium">Loading lyrics options...</p>
         <p className="text-center text-sm text-muted-foreground mt-1">
           Searching for lyrics that match your song

@@ -9,6 +9,7 @@ import { useSongPreview } from "../../hooks/useSongPreview";
 import { ProcessingIndicator } from "./ProcessingIndicator";
 import { SongPreviewOverlay } from "./SongPreviewOverlay";
 import { PreviewToggleButton } from "./PreviewToggleButton";
+import { swatchTile } from "@/lib/swatch";
 
 const SyncedLyricsBadge: React.FC = () => (
   <Badge className="absolute top-2 right-2 z-10" variant="accent">
@@ -66,8 +67,9 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
   return (
     <div
       className={cn(
-        "relative overflow-hidden flex items-center justify-center bg-primary/20 cursor-pointer",
-        preview.isPreviewing && "ring-2 ring-accent ring-inset",
+        "relative overflow-hidden flex items-center justify-center cursor-pointer",
+        swatchTile(song.id),
+        preview.isPreviewing && "ring-2 ring-selected ring-inset",
       )}
       onClick={handleClick}
       {...preview.hoverHandlers}
@@ -117,7 +119,7 @@ export const SongArtwork: React.FC<SongArtworkProps> = ({
           </>
         ) : (
           <div className="flex items-center justify-center w-full h-full aspect-video">
-            <Music size={64} className="text-muted-foreground/60" />
+            <Music size={64} className="opacity-70" />
           </div>
         )}
       </div>

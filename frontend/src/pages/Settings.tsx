@@ -132,7 +132,9 @@ const SettingsPage: React.FC = () => {
   return (
     <AppLayout>
       <div>
-        <h1 className="text-2xl font-semibold mb-6 text-primary">Settings</h1>
+        <h1 className="text-2xl font-semibold mb-6 text-foreground">
+          Settings
+        </h1>
 
         <RotationModeCard />
 

@@ -125,7 +125,8 @@ const SongConfirmScreen: React.FC<SongConfirmScreenProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [shell, setSinger]);
-  const chosenRing = "ring-4 ring-primary ring-offset-2 ring-offset-background";
+  const chosenRing =
+    "ring-4 ring-selected ring-offset-2 ring-offset-background";
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">

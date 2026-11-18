@@ -122,7 +122,7 @@ const AlphabeticalIndexBar: React.FC<AlphabeticalIndexBarProps> = ({
   return (
     <div className={`relative flex items-center h-full ${className}`}>
       {activeLetter && (
-        <div className="absolute right-full mr-3 w-12 h-12 rounded-full bg-primary flex items-center justify-center text-foreground text-xl font-bold shadow-lg pointer-events-none select-none">
+        <div className="absolute right-full mr-3 w-12 h-12 rounded-full bg-selected flex items-center justify-center text-selected-foreground text-xl font-bold shadow-lg pointer-events-none select-none">
           {activeLetter}
         </div>
       )}
@@ -144,9 +144,9 @@ const AlphabeticalIndexBar: React.FC<AlphabeticalIndexBarProps> = ({
               key={letter}
               className={`text-[10px] leading-tight w-4 text-center transition-colors ${
                 active
-                  ? "text-primary font-bold"
+                  ? "text-selected font-bold"
                   : available
-                    ? "text-primary/80"
+                    ? "text-foreground-dim"
                     : "text-foreground-faint"
               }`}
             >

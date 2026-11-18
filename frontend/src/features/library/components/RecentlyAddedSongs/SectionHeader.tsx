@@ -17,7 +17,9 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
 }) => {
   return (
     <div className="flex items-center justify-between mb-4">
-      <span className="text-xl font-semibold text-primary">Recently Added</span>
+      <span className="text-xl font-semibold text-section-label">
+        Recently Added
+      </span>
       {hasNextPage && (
         <Button
           variant="ghost"
@@ -25,7 +27,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
           onClick={onNext}
           disabled={isAnimating}
           title={`Show next ${songsPerPage} songs`}
-          className="text-primary hover:bg-primary/20 disabled:opacity-50"
+          className="text-foreground-dim hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
         >
           <ChevronRight size={20} />
         </Button>

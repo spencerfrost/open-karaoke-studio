@@ -268,7 +268,7 @@ const EditArtistDialog: React.FC<EditArtistDialogProps> = ({
               <div className="flex justify-center">
                 <button
                   type="button"
-                  className="relative group w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted hover:ring-2 hover:ring-primary transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative group w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted hover:ring-2 hover:ring-ring transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => setMode("image-search")}
                   disabled={isBusy}
                   aria-label="Edit artist image"

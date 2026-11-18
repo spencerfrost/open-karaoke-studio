@@ -34,7 +34,7 @@ const LyricsControlsCard: React.FC<LyricsControlsCardProps> = ({
   return (
     <div className={cardClass(cn("shrink-0", className))}>
       <div className="flex items-center gap-2.5">
-        <Captions className={cn(cardIconClass, "text-primary")} />
+        <Captions className={cn(cardIconClass, "text-secondary")} />
         <span className={cardLabelClass}>Lyrics</span>
       </div>
 

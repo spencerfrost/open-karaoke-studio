@@ -292,7 +292,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
                 <span className="truncate">{SOURCES[row].label}</span>
               ) : (
                 <>
-                  <Plus className="mr-3 size-7 flex-none text-accent" />
+                  <Plus className="mr-3 size-7 flex-none text-foreground-dim" />
                   <span className="truncate">
                     {SOURCE_ACTIONS[row - SOURCES.length].label}
                   </span>
@@ -383,7 +383,7 @@ const SongWheel: React.FC<SongWheelProps> = ({
               if (!song) {
                 return (
                   <>
-                    <Search className="mr-3 size-7 flex-none text-accent" />
+                    <Search className="mr-3 size-7 flex-none text-foreground-dim" />
                     <span className="truncate">
                       Find more from {az.artist?.name}
                     </span>

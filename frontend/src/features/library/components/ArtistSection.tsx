@@ -23,6 +23,8 @@ import ArtistSongTable from "./ArtistSongTable";
 import EditArtistDialog from "./EditArtistDialog";
 import ManageCollabsDialog from "./ManageCollabsDialog";
 import { Artist } from "@/hooks/api/useArtists";
+import { swatchTile } from "@/lib/swatch";
+import { cn } from "@/lib/utils";
 
 interface ArtistSectionProps {
   artist: Artist;
@@ -126,15 +128,20 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
         >
           <div className="flex items-center gap-3">
             {isExpanded ? (
-              <ChevronDown size={20} className="text-primary" />
+              <ChevronDown size={20} className="text-foreground-dim" />
             ) : (
-              <ChevronRight size={20} className="text-primary" />
+              <ChevronRight size={20} className="text-foreground-dim" />
             )}
-            <div className="w-14 h-14 rounded-md overflow-hidden flex-shrink-0 bg-primary/20 flex items-center justify-center">
+            <div
+              className={cn(
+                "w-14 h-14 rounded-md overflow-hidden flex-shrink-0 flex items-center justify-center",
+                swatchTile(artist.name),
+              )}
+            >
               {artist.isShow ? (
-                <Theater size={18} className="text-primary" />
+                <Theater size={18} />
               ) : imageError ? (
-                <Users size={18} className="text-primary" />
+                <Users size={18} />
               ) : (
                 <img
                   src={imageUrl}
@@ -159,7 +166,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 e.stopPropagation();
                 setViewMode("grid");
               }}
-              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-primary" : "text-foreground-faint hover:text-foreground-dim"}`}
+              className={`p-1.5 rounded transition-colors ${viewMode === "grid" ? "text-selected" : "text-foreground-faint hover:text-foreground-dim"}`}
               aria-label="Grid view"
             >
               <LayoutGrid size={16} />
@@ -169,7 +176,7 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
                 e.stopPropagation();
                 setViewMode("table");
               }}
-              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-primary" : "text-foreground-faint hover:text-foreground-dim"}`}
+              className={`p-1.5 rounded transition-colors ${viewMode === "table" ? "text-selected" : "text-foreground-faint hover:text-foreground-dim"}`}
               aria-label="List view"
             >
               <List size={16} />
@@ -181,14 +188,14 @@ const ArtistSection: React.FC<ArtistSectionProps> = ({
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
-              className="px-3 py-3 hover:bg-surface-hover transition-colors text-primary/60 hover:text-primary"
+              className="px-3 py-3 hover:bg-surface-hover transition-colors text-foreground-dim hover:text-foreground"
               aria-label={`Actions for ${artist.name}`}
             >
               <MoreHorizontal size={18} />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="bg-overlay/95 border-primary/20"
+              className="bg-overlay/95 border-border"
             >
               <DropdownMenuItem
                 onClick={() => setEditOpen(true)}

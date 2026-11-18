@@ -59,7 +59,7 @@ const StageJoinCode: React.FC<StageJoinCodeProps> = ({
           <span className="text-base uppercase tracking-[0.08em] text-foreground-dim">
             Join Code:
           </span>
-          <span className="font-accent text-3xl leading-tight text-primary">
+          <span className="font-accent text-3xl leading-tight text-accent">
             {displayCode}
           </span>
         </div>

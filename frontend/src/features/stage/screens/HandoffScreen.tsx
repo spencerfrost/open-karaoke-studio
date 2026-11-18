@@ -73,6 +73,7 @@ import {
 import LyricsFeedbackRow from "../components/LyricsFeedbackRow";
 import { useStageShell } from "../StageShellContext";
 import { findTurnItem } from "../turnItem";
+import { swatchTile } from "@/lib/swatch";
 
 const logger = createLogger("component:handoff-screen");
 
@@ -384,7 +385,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               value={`${window.location.origin}/join/${displayCode}`}
               size={200}
             />
-            <p className="font-accent text-5xl leading-tight text-primary">
+            <p className="font-accent text-5xl leading-tight text-accent">
               {displayCode}
             </p>
           </div>
@@ -406,7 +407,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                     <button
                       key={song.id}
                       onClick={() => handleSuggestion(song)}
-                      className="group overflow-hidden rounded-lg bg-overlay/60 text-left transition-all duration-200 hover:scale-105 hover:bg-overlay/80 hover:ring-2 hover:ring-primary/50"
+                      className="group overflow-hidden rounded-lg bg-overlay/60 text-left transition-all duration-200 hover:scale-105 hover:bg-overlay/80 hover:ring-2 hover:ring-ring/50"
                     >
                       <div className="relative aspect-video w-full">
                         {getArtworkUrl(song, "medium") ? (
@@ -416,11 +417,13 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                             className="size-full object-cover"
                           />
                         ) : (
-                          <div className="flex size-full items-center justify-center bg-primary/20">
-                            <Music
-                              size={32}
-                              className="text-foreground-faint"
-                            />
+                          <div
+                            className={cn(
+                              "flex size-full items-center justify-center",
+                              swatchTile(song.id),
+                            )}
+                          >
+                            <Music size={32} />
                           </div>
                         )}
                       </div>
