@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LibraryPage from "../pages/Library";
 import AddSongPage from "../pages/AddSong";
 import SettingsPage from "../pages/Settings";
+import ThemePreviewPage from "../pages/ThemePreview";
 import StagePage from "../pages/Stage";
 import PerformanceControlsPage from "../pages/PerformanceControlsPage";
 import Entry from "../pages/Entry";
@@ -36,6 +37,7 @@ const AppRoutes: React.FC = () => (
       {/* No further requirement. */}
       <Route path="/" element={<LibraryPage />} />
       <Route path="/add/*" element={<AddSongPage />} />
+      <Route path="/theme" element={<ThemePreviewPage />} />
 
       {/* Any account, host or not. A session guest has no settings. */}
       <Route element={<RequireCapability account />}>
