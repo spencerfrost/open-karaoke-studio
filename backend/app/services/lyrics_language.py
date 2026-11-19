@@ -103,12 +103,15 @@ def detect_vocals_language(
     """Detect the sung language with Whisper, skipping the silent parts of the vocals stem."""
     from faster_whisper import WhisperModel, decode_audio
 
-    from app.services.lyrics_transcription import _configure_hf_cache_environment
+    from app.services.lyrics_transcription import (
+        DEFAULT_WHISPER_MODEL,
+        _configure_hf_cache_environment,
+    )
 
     _configure_hf_cache_environment(song_id)
     resolved_device = _resolve_alignment_device(device)
     is_cuda = _is_cuda_device(resolved_device)
-    model_name = (os.getenv("LYRICS_ASR_MODEL") or "small").strip() or "small"
+    model_name = DEFAULT_WHISPER_MODEL
     started_at = perf_counter()
 
     activity_started = False

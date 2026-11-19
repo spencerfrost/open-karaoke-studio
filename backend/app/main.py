@@ -214,7 +214,7 @@ async def internal_error_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 5123))
+    port = 5123  # run_api.sh, the Dockerfile and the Vite proxy all use 5123
 
     logger.info("Starting Open Karaoke Studio API Server on http://0.0.0.0:%s", port)
     print(f"🚀 Starting Open Karaoke Studio FastAPI Backend")

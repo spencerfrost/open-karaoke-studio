@@ -424,7 +424,7 @@ def save_stem(
                 tensor,
                 str(path),
                 separator_samplerate,
-                int(config.DEFAULT_MP3_BITRATE),
+                int(config.MP3_BITRATE),
                 "rescale",
                 16,
                 False,
@@ -545,7 +545,7 @@ def separate_audio(input_path: Path, song_dir: Path, status_callback, stop_event
         device = select_device_and_log(status_callback)
         progress_callback = make_progress_callback(status_callback, stop_event)
         config = get_config()
-        model_name = config.DEFAULT_MODEL
+        model_name = config.DEMUCS_MODEL
         separator = init_separator(
             model_name, device, progress_callback, status_callback
         )

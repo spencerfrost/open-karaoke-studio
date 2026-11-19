@@ -18,7 +18,7 @@ Environment:
 - Do not attempt to read .env files directly. Ask the user to provide necessary environment variables explicitly.
 - For local development, the following environment variables are typically set to:
   - DATABASE_URL=postgresql://karaoke_user:karaoke_pass@localhost/karaoke
-  - REDIS_URL=redis://localhost:6379/0
+  - CELERY_BROKER_URL=redis://localhost:6379/0
 - Tmux pane layout:
 	- Pane `0.0` = API logs
 	- Pane `0.1` = Celery logs

@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 # JWT Configuration
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", 10080)  # 7 days
-)
+ACCESS_TOKEN_EXPIRE_MINUTES = 7 * 24 * 60  # 7 days; the client renews a day in
 
 
 def _get_secret_key() -> str:

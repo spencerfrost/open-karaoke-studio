@@ -477,7 +477,7 @@ already-downloaded `original.mp3`; first attempts always download. Only once ret
 the song become `error`, with the real cause in `error_message`. The whole call is bracketed by
 `begin_gpu_activity` / `end_gpu_activity` ([services/gpu_idle_cleanup.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_idle_cleanup.py)),
 a refcount + generation-counter guard that releases VRAM (`gc.collect`, `empty_cache`,
-`ipc_collect`) after `GPU_IDLE_CLEANUP_SECONDS` (default 30 min) of no GPU work.
+`ipc_collect`) after `IDLE_CLEANUP_SECONDS` (30 min) of no GPU work.
 
 **How full the card gets.** Separation and each lyrics run are wrapped in `track_gpu_memory`
 ([services/gpu_memory.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/gpu_memory.py)), which reads the whole card's used
@@ -492,8 +492,8 @@ The card numbers include every other process on it (the other worker, dev's work
 desktop), which is what decides whether the next allocation fits. The torch number is this
 process's own peak, and misses faster-whisper's models. Under 1 GiB free at the tightest moment
 logs as a warning. The same numbers are written to `logs/lyrics_timing.jsonl` as a
-`gpu_memory_peak` event, which is recorded whatever `LOG_LEVEL` is, so prod (which logs warnings
-only) still has every run's peak.
+`gpu_memory_peak` event, which is recorded whatever `LOG_LEVEL` is, so prod (whose console shows
+warnings only) still has every run's peak.
 
 In practice new songs never pick an engine: `POST /api/songs/from-youtube` sends none, so
 `download_and_process_async` uses its `"three_track"` default. The other six are reachable only

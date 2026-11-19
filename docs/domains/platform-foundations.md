@@ -340,7 +340,7 @@ valid.
 
 ### Staying signed in
 
-A token lasts 7 days (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`), and a device in use renews it
+A token lasts 7 days (`ACCESS_TOKEN_EXPIRE_MINUTES` in `auth_service`), and a device in use renews it
 before then. `useKeepSignedIn`, mounted in `App.tsx`, calls `authStore.renewIfDue()` when the app
 opens, when the tab comes back into view, and hourly while it stays open, which covers a TV left
 on for days. `renewIfDue` reads the expiry from the token's payload and only calls
@@ -352,8 +352,8 @@ and returns a fresh login response with a new 7-day token and the account's curr
   demo token is cut to end with its demo session.
 - A refresh the server rejects with 401 runs `expireSession()`. A network error or any other
   status keeps the current token and tries again on the next check.
-- The client's "a day old" reading assumes the 7-day default. With a different
-  `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` the renewal still works, just earlier or later than a day in.
+- The client's "a day old" reading assumes the 7-day lifetime. If that constant changes, the
+  renewal still works, just earlier or later than a day in.
 
 ### Using the token, and what happens on 401
 

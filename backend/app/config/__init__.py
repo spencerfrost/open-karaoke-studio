@@ -20,12 +20,11 @@ config_map = {
 def get_config():
     """
     Get the appropriate configuration class based on the ENVIRONMENT variable.
-    Falls back to FLASK_ENV for backward compatibility.
 
     Returns:
         Configuration class instance for the current environment
     """
-    env = os.getenv("ENVIRONMENT", os.getenv("FLASK_ENV", "development")).lower()
+    env = os.getenv("ENVIRONMENT", "development").lower()
     config_class = config_map.get(env, DevelopmentConfig)
     return config_class()
 

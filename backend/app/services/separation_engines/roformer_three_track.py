@@ -219,7 +219,7 @@ def separate_with_three_track(
         lead_audio_early.export(
             str(vocals_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("[PIPELINE] vocals.mp3 mapped at %s", vocals_final)
         _ts("vocals_mp3_end")
@@ -323,7 +323,7 @@ def separate_with_three_track(
             lead_audio.export(
                 str(vocals_final),
                 format="mp3",
-                bitrate=config.DEFAULT_MP3_BITRATE,
+                bitrate=config.MP3_BITRATE,
             )
 
         # 2. Convert backing vocals to target track
@@ -332,7 +332,7 @@ def separate_with_three_track(
         backing_audio.export(
             str(backing_vocals_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("Backing vocals saved to destination: %s", backing_vocals_final)
 
@@ -342,7 +342,7 @@ def separate_with_three_track(
         instr_audio.export(
             str(instrumental_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("Instrumental saved to destination: %s", instrumental_final)
         status_callback("Progress: 99% - Processing array complete")

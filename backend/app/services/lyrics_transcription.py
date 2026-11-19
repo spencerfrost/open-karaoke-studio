@@ -22,6 +22,14 @@ logger = logging.getLogger(__name__)
 
 ASRProvider = Literal["whisperx", "qwen3"]
 
+# Callers (the benchmark and experiment scripts) pass provider/model_name to
+# try others.
+DEFAULT_ASR_PROVIDER: ASRProvider = "whisperx"
+DEFAULT_WHISPER_MODEL = "small"  # faster-whisper size
+DEFAULT_QWEN_MODEL = "Qwen/Qwen3-ASR-1.7B"
+QWEN_FORCED_ALIGNER = "Qwen/Qwen3-ForcedAligner-0.6B"
+QWEN_MAX_NEW_TOKENS = 1024
+
 
 class TranscribedLyricsResult(TypedDict):
     plain_lyrics: str
@@ -33,10 +41,6 @@ class TranscribedLyricsResult(TypedDict):
 
 def _resolve_hf_cache_dir() -> Path:
     """Return a writable Hugging Face cache directory for ASR model downloads."""
-    configured = (os.getenv("LYRICS_HF_CACHE_DIR") or "").strip()
-    if configured:
-        return Path(configured).expanduser()
-
     backend_root = Path(__file__).resolve().parents[2]
     return backend_root / ".cache" / "huggingface"
 
@@ -63,9 +67,7 @@ def _normalize_text(text: str) -> str:
 
 
 def _resolve_asr_provider(provider: str | None) -> ASRProvider:
-    requested = (
-        (provider or os.getenv("LYRICS_ASR_PROVIDER") or "whisperx").strip().lower()
-    )
+    requested = (provider or DEFAULT_ASR_PROVIDER).strip().lower()
     provider_aliases = {
         "whisper": "whisperx",
         "whisperx": "whisperx",
@@ -513,11 +515,9 @@ def _transcribe_with_qwen3(
         return None
 
     qwen_language = _resolve_qwen_language(transcription_language)
-    aligner_checkpoint = (
-        os.getenv("LYRICS_QWEN_FORCED_ALIGNER") or "Qwen/Qwen3-ForcedAligner-0.6B"
-    ).strip()
+    aligner_checkpoint = QWEN_FORCED_ALIGNER
     use_aligner = bool(aligner_checkpoint)
-    max_new_tokens = int(os.getenv("LYRICS_QWEN_MAX_NEW_TOKENS", "1024"))
+    max_new_tokens = QWEN_MAX_NEW_TOKENS
 
     qwen_dtype = torch.bfloat16 if _is_cuda_device(resolved_device) else torch.float32
     model_kwargs: dict[str, Any] = {
@@ -631,14 +631,11 @@ def transcribe_lyrics_from_vocals(
     resolved_provider = _resolve_asr_provider(provider)
     resolved_device = _resolve_alignment_device(device)
     transcription_language = (language or "").strip() or None
-    model_env_var = (
-        "LYRICS_QWEN_ASR_MODEL" if resolved_provider == "qwen3" else "LYRICS_ASR_MODEL"
-    )
     default_model_name = (
-        "Qwen/Qwen3-ASR-1.7B" if resolved_provider == "qwen3" else "small"
+        DEFAULT_QWEN_MODEL if resolved_provider == "qwen3" else DEFAULT_WHISPER_MODEL
     )
     resolved_model_name = (
-        model_name or os.getenv(model_env_var) or default_model_name
+        model_name or default_model_name
     ).strip() or default_model_name
 
     logger.info(

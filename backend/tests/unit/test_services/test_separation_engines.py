@@ -14,8 +14,8 @@ def _config(**overrides):
         "SEPARATION_USE_AUTOCAST": True,
         "SEPARATION_TORCH_COMPILE": True,
         "THREE_TRACK_DENOISE": True,
-        "DEFAULT_MODEL": "htdemucs_ft",
-        "DEFAULT_MP3_BITRATE": "320",
+        "DEMUCS_MODEL": "htdemucs_ft",
+        "MP3_BITRATE": "320",
     }
     values.update(overrides)
     return SimpleNamespace(**values)

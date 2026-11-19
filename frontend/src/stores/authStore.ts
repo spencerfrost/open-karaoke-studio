@@ -95,7 +95,7 @@ export function tokenExpiryMs(token: string): number | null {
   }
 }
 
-/** Server tokens last this long; mirrors JWT_ACCESS_TOKEN_EXPIRE_MINUTES. */
+/** Server tokens last this long; mirrors ACCESS_TOKEN_EXPIRE_MINUTES in auth_service. */
 const TOKEN_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** True when the token has been in use long enough to renew. */

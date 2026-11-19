@@ -68,7 +68,7 @@ report also counts songs where wav2vec2 and MMS agree that the LRC is shifted.
 
 | Name | Task | What |
 |---|---|---|
-| `whisper-small` | asr | App default (`LYRICS_ASR_MODEL` unset) |
+| `whisper-small` | asr | App default (`DEFAULT_WHISPER_MODEL`) |
 | `whisper-large-v3`, `whisper-large-v3-turbo` | asr | Same WhisperX path, bigger models |
 | `qwen3-asr-1.7b`, `qwen3-asr-0.6b` | asr | The app's `qwen3` provider |
 | `wav2vec2` | align | Production aligner (`align_line_chunks`, WhisperX wav2vec2) |

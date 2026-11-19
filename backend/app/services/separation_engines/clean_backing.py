@@ -107,7 +107,7 @@ def separate_with_clean_backing(
         )
 
         demucs_separator = DemucsSeparator(
-            model=config.DEFAULT_MODEL,
+            model=config.DEMUCS_MODEL,
             device=device,
             callback=make_progress_callback(demucs_progress_callback, stop_event),
         )
@@ -333,7 +333,7 @@ def separate_with_clean_backing(
         lead_audio.export(
             str(vocals_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("Final vocals saved to: %s", vocals_final)
 
@@ -343,7 +343,7 @@ def separate_with_clean_backing(
         instr_audio.export(
             str(instrumental_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("Final instrumental saved to: %s", instrumental_final)
         status_callback("Progress: 85% - Step 5/5 complete")

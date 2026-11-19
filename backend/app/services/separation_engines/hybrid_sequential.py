@@ -74,7 +74,7 @@ def separate_with_hybrid(
 
         device = select_device_and_log(status_callback)
         config = get_config()
-        model_name = config.DEFAULT_MODEL
+        model_name = config.DEMUCS_MODEL
 
         # Create a wrapped progress callback that maps Demucs [0-100%] to job [35-60%]
         demucs_progress_callback = create_audio_progress_mapper(
@@ -260,7 +260,7 @@ def separate_with_hybrid(
         lead_audio.export(
             str(vocals_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("Final vocals saved to: %s", vocals_final)
 
@@ -269,7 +269,7 @@ def separate_with_hybrid(
         instr_audio.export(
             str(instrumental_final),
             format="mp3",
-            bitrate=config.DEFAULT_MP3_BITRATE,
+            bitrate=config.MP3_BITRATE,
         )
         logger.info("Final instrumental saved to: %s", instrumental_final)
         status_callback("Progress: 85% - Step 3/3 complete")
