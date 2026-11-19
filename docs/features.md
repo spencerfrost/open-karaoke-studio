@@ -478,7 +478,8 @@ so the mini player never shows there; the stage has its own now-playing bar (bel
 mic.
 
 **Features:**
-- Opens by itself when a song ends on the performance screen
+- Opens by itself when a song ends on the performance screen, and before the first song once
+  songs are queued
 - **Who's up:** the next singer's name, large
 - **What they're singing:** their song (click or Enter to start it). If they haven't picked one:
   "check your phone, or pick one here", up to four suggestions by the same artist, and Open the
