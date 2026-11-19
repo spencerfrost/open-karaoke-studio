@@ -40,7 +40,7 @@ def _is_cuda_device(device: str) -> bool:
 
 
 def _resolve_alignment_device(device: str | None = None) -> str:
-    requested_device = (device or os.getenv("LYRICS_ALIGNMENT_DEVICE", "auto")).strip()
+    requested_device = (device or "auto").strip()
     if not requested_device:
         requested_device = "auto"
 

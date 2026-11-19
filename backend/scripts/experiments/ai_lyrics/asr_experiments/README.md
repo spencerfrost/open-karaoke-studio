@@ -50,12 +50,8 @@ python scripts/ai_lyrics/asr_experiments/compare_whisperx_qwen3.py \
 	--song-id <song_id_2>
 ```
 
-Useful env vars:
-
-- `LYRICS_ASR_PROVIDER=whisperx|qwen3`
-- `LYRICS_ASR_MODEL` (WhisperX model, default `small`)
-- `LYRICS_QWEN_ASR_MODEL` (default `Qwen/Qwen3-ASR-1.7B`)
-- `LYRICS_QWEN_FORCED_ALIGNER` (default `Qwen/Qwen3-ForcedAligner-0.6B`)
+Default models are constants at the top of `app/services/lyrics_transcription.py`
+(WhisperX `small`, `Qwen/Qwen3-ASR-1.7B`, `Qwen/Qwen3-ForcedAligner-0.6B`).
 
 Outputs:
 

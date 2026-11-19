@@ -41,8 +41,3 @@ class ProductionConfig(BaseConfig):
 
     # Production-specific optimizations
     SQLALCHEMY_ECHO = False
-
-    # More restrictive upload limits for production
-    MAX_CONTENT_LENGTH = int(
-        os.environ.get("MAX_CONTENT_LENGTH", 100 * 1024 * 1024)
-    )  # 100MB default

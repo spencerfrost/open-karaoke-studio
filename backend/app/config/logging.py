@@ -72,7 +72,7 @@ class LoggingConfig:
         self.config = config
         self.log_dir = Path(config.BASE_DIR) / "backend" / "logs"
         self.log_dir.mkdir(exist_ok=True)
-        self.timezone = getattr(config, "TIMEZONE", "America/Toronto")
+        self.timezone = config.TIMEZONE
 
     def setup_logging(self, environment: str = "development") -> dict[str, Any]:
         """Setup logging configuration based on environment"""
@@ -241,18 +241,7 @@ class LoggingConfig:
         }
 
         # Environment-specific adjustments
-        if environment == "development":
-            # Development: INFO level for console, DEBUG for files only
-            log_config["loggers"][""]["level"] = "INFO"
-            log_config["handlers"]["console"]["level"] = "INFO"
-            log_config["loggers"]["app"]["level"] = "INFO"
-
-            # Make console output less verbose - only show important messages
-            log_config["handlers"]["console"]["formatter"] = "simple"
-
-        elif environment == "production":
-            # Production: Only log to files, reduce console logging
-            log_config["handlers"]["console"]["level"] = "WARNING"
+        if environment == "production":
             # Add JSON logging for production monitoring
             log_config["handlers"]["file_json"] = {
                 "class": "logging.handlers.RotatingFileHandler",
@@ -268,7 +257,12 @@ class LoggingConfig:
         elif environment == "testing":
             # Testing: Minimal logging
             log_config["loggers"][""]["level"] = "WARNING"
-            log_config["handlers"]["console"]["level"] = "WARNING"
+
+        # The console shows LOG_LEVEL and up; the files keep INFO either way.
+        default_console_level = "INFO" if environment == "development" else "WARNING"
+        log_config["handlers"]["console"]["level"] = (
+            self.config.LOG_LEVEL or default_console_level
+        )
 
         return log_config
 
@@ -310,10 +304,9 @@ def setup_logging(config: BaseConfig):
     if config is None:
         config = get_config()
 
+    environment = os.getenv("ENVIRONMENT", "development").lower()
     logging_config = LoggingConfig(config)
-    log_dict_config = logging_config.setup_logging(
-        environment=os.getenv("FLASK_ENV", "development")
-    )
+    log_dict_config = logging_config.setup_logging(environment=environment)
 
     # Apply the logging configuration
     import logging.config as logging_config_module
@@ -325,7 +318,7 @@ def setup_logging(config: BaseConfig):
 
     # Minimal logging initialization message
     log = logging.getLogger(__name__)
-    log.debug("Logging configured for %s", os.getenv("FLASK_ENV", "development"))
+    log.debug("Logging configured for %s", environment)
 
     return logging_config
 

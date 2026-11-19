@@ -6,14 +6,6 @@ import os
 from pathlib import Path
 
 
-def _env_flag(name: str, default: bool) -> bool:
-    """Read a true/false environment variable."""
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in ("1", "true", "yes", "on")
-
-
 class BaseConfig:
     """Base configuration class containing common settings for all environments."""
 
@@ -28,15 +20,12 @@ class BaseConfig:
         Path(__file__).resolve().parent.parent.parent.parent
     )  # Points to project root
 
-    # Timezone Configuration
-    TIMEZONE = os.environ.get("TIMEZONE", "America/Toronto")
+    # Timestamps in the log files
+    TIMEZONE = "America/Toronto"
 
-    # Logging Configuration
-    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
-    LOG_DIR = Path(os.environ.get("LOG_DIR", str(BASE_DIR / "backend" / "logs")))
-    LOG_MAX_BYTES = int(os.environ.get("LOG_MAX_BYTES", 10485760))
-    LOG_BACKUP_COUNT = int(os.environ.get("LOG_BACKUP_COUNT", 5))
-    LOG_FORMAT = os.environ.get("LOG_FORMAT", "detailed")
+    # How much the console shows (tmux panes, `docker logs`). The log files
+    # always keep INFO. Unset: INFO in development, WARNING in production.
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "").strip().upper() or None
 
     # Database Configuration
     # DATABASE_URL is required - no fallback to SQLite
@@ -53,19 +42,18 @@ class BaseConfig:
     # File Management
     LIBRARY_DIR = Path(os.environ.get("LIBRARY_DIR", str(BASE_DIR / "karaoke_library")))
 
-    # Audio Processing Settings
-    DEMUCS_MODEL = os.environ.get("DEMUCS_MODEL", "htdemucs_ft")
-    MP3_BITRATE = os.environ.get("MP3_BITRATE", "320")
-    DEFAULT_MODEL = DEMUCS_MODEL  # For backwards compatibility
+    # Audio processing. Fixed, not per machine: dev and prod share one library,
+    # and every song's stems should come from the same model and bitrate.
+    DEMUCS_MODEL = "htdemucs_ft"
+    MP3_BITRATE = "320"
     # Mixed precision on the Roformer passes (1.5-1.9x faster) and the three-track
     # Demucs pass (~15% faster); inaudible change
-    SEPARATION_USE_AUTOCAST = _env_flag("SEPARATION_USE_AUTOCAST", True)
+    SEPARATION_USE_AUTOCAST = True
     # torch.compile on the Roformer blocks: ~1/3 faster again, ~6 s warm-up once
     # per worker process; falls back to eager if the build can't compile
-    SEPARATION_TORCH_COMPILE = _env_flag("SEPARATION_TORCH_COMPILE", True)
+    SEPARATION_TORCH_COMPILE = True
     # De-noise pass on three-track backing vocals (one extra Roformer pass)
-    THREE_TRACK_DENOISE = _env_flag("THREE_TRACK_DENOISE", True)
-    DEFAULT_MP3_BITRATE = MP3_BITRATE  # For backwards compatibility
+    THREE_TRACK_DENOISE = True
 
     # Third-party API Keys
     DISCOGS_TOKEN = os.environ.get("DISCOGS_TOKEN", "")
@@ -78,24 +66,12 @@ class BaseConfig:
     # parity.
     YTDLP_COOKIES_FILE = os.environ.get("YTDLP_COOKIES_FILE", "")
 
-    # Upload Configuration
-    MAX_CONTENT_LENGTH = int(
-        os.environ.get("MAX_CONTENT_LENGTH", 200 * 1024 * 1024)
-    )  # 200MB
     ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".m4a"}
 
     # Celery Configuration
     CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND = os.environ.get(
-        "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
-    )
-
-    # Redis Configuration (fallback support)
-    REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-
-    # Server Configuration
-    HOST = os.environ.get("HOST", "0.0.0.0")
-    PORT = int(os.environ.get("PORT", 5123))
+    # Same Redis as the broker; CI overrides it with an in-memory backend
+    CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 
     @property
     def CORS_ORIGINS(self) -> list[str]:
@@ -143,7 +119,7 @@ class BaseConfig:
         required_vars = []
 
         # Check for production-critical environment variables
-        env = os.getenv("ENVIRONMENT", os.getenv("FLASK_ENV", "development")).lower()
+        env = os.getenv("ENVIRONMENT", "development").lower()
         if env == "production":
             if not os.environ.get("SECRET_KEY"):
                 required_vars.append("SECRET_KEY")
@@ -159,4 +135,3 @@ class BaseConfig:
 
         # Ensure directories exist
         self.LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-        self.LOG_DIR.mkdir(parents=True, exist_ok=True)  # Ensure log directory exists

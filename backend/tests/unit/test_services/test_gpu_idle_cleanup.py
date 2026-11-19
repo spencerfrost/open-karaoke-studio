@@ -22,7 +22,7 @@ def test_end_gpu_activity_schedules_idle_cleanup(monkeypatch):
         def cancel(self):
             scheduled["cancelled"] = True
 
-    monkeypatch.setenv("GPU_IDLE_CLEANUP_SECONDS", "123")
+    monkeypatch.setattr(gpu_idle_cleanup, "IDLE_CLEANUP_SECONDS", 123)
     monkeypatch.setattr(gpu_idle_cleanup.torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(gpu_idle_cleanup.threading, "Timer", FakeTimer)
     monkeypatch.setattr(gpu_idle_cleanup.time, "monotonic", lambda: 1000.0)

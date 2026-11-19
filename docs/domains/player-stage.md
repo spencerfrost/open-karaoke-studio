@@ -119,9 +119,9 @@ stateDiagram-v2
     confirm --> select: Add to queue · Back
     add --> select: Back · submitted
     select --> performance: Back (song still going)
-    select --> handoff: Back (song ended,<br/>next singer has a song)
-    performance --> handoff: songEnded = true
-    handoff --> performance: a song starts<br/>(songEnded = false)
+    select --> handoff: Back (between songs,<br/>next singer has a song)
+    performance --> handoff: song ended, or nothing<br/>loaded and songs queued
+    handoff --> performance: a song starts
     handoff --> select: Open the Songbook · L · Back
 ```
 
@@ -133,11 +133,14 @@ Which screens stay mounted:
 | select (`SongSelectScreen`) | Once opened, then hidden | The wheel keeps its place across a trip to confirm and back. It remounts fresh once per singer: when the playing song passes 10% (`WHEEL_FRESH_AT`), the next visit to song select starts over, since the next person browsing is probably someone else. Someone already browsing at that moment keeps their place. |
 | confirm, add, handoff | Only while showing | Cheap to mount. `AddSongScreen` reads its `query` on mount, so it has to remount to take a new one. |
 
-The handoff screen is the only one the shell opens by itself. It watches `songEnded` from
-`usePlaybackStateStore` ([StageShell.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/StageShell.tsx)).
-When a song finishes on the performance screen, the shell switches to handoff. When the next song
-starts, `songEnded` goes false and it switches back. A song that ends while someone is browsing
-leaves them where they are.
+The handoff screen is the only one the shell opens by itself
+([StageShell.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/StageShell.tsx)).
+It opens between songs: when `songEnded` (from `usePlaybackStateStore`) is true, or when nothing
+is loaded (`queue.current` is null) and songs are waiting. The second case is the start of a
+night: songs queued from phones before anything has played. When a song starts, both are false
+and the shell switches back to performance. Neither case starts a song by itself. A song that ends
+while someone is browsing leaves them where they are, and Back from song select goes to handoff in
+either case.
 
 ### Three contexts
 

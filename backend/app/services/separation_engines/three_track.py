@@ -106,7 +106,7 @@ def separate_with_three_track(
     temp_dir.mkdir(exist_ok=True)
 
     config = get_config()
-    bitrate = config.DEFAULT_MP3_BITRATE
+    bitrate = config.MP3_BITRATE
     vocals_final = file_management.get_vocals_path_stem(song_dir).with_suffix(".mp3")
     backing_vocals_final = file_management.get_backing_vocals_path_stem(
         song_dir
@@ -137,7 +137,7 @@ def separate_with_three_track(
             )
 
             demucs_separator = DemucsSeparator(
-                model=config.DEFAULT_MODEL,
+                model=config.DEMUCS_MODEL,
                 device=device,
                 overlap=DEMUCS_OVERLAP,
                 callback=make_progress_callback(demucs_progress_callback, stop_event),

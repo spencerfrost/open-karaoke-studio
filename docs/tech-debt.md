@@ -294,8 +294,8 @@ code is touched, rather than in one sweep.
   `auth_service` makes a random one per process and logs an error, so a restart signs everyone
   out.
 - An `ENVIRONMENT` value that isn't recognised silently runs as development.
-- `BaseConfig` carries Flask-era aliases (`FLASK_ENV`, `SQLALCHEMY_*`, `BASE_LIBRARY_DIR`,
-  `library_path`, `PROJECT_ROOT`, `DEFAULT_MODEL`, `DEFAULT_MP3_BITRATE`).
+- `BaseConfig` carries Flask-era aliases (`SQLALCHEMY_*`, `BASE_LIBRARY_DIR`, `library_path`,
+  `PROJECT_ROOT`).
 - `get_config()` builds a new config object on every call.
 
 Prod's `docker-compose.yml` sets both secrets, so nothing is broken today.

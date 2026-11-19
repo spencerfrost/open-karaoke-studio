@@ -823,9 +823,11 @@ When a song's lyrics look wrong, grep that file for the song id first. A full GP
 `lyrics_gpu_full`, and each run records how full the card got as a `gpu_memory_peak` event (see
 [ingestion](./ingestion-pipeline.md)).
 
-Environment knobs: `LYRICS_ALIGNMENT_DEVICE` (`auto`/`cuda`/`cpu`), `LYRICS_ASR_PROVIDER`
-(`whisperx` default, or `qwen3`), `LYRICS_ASR_MODEL` (faster-whisper size, default `small`),
-`LYRICS_QWEN_ASR_MODEL`, `LYRICS_QWEN_FORCED_ALIGNER`, `LYRICS_HF_CACHE_DIR`.
+Model choices are constants at the top of `lyrics_transcription.py`: WhisperX with faster-whisper
+`small`, or `qwen3` with the Qwen3 ASR and forced-aligner models. The device is picked
+automatically (CUDA when available). The benchmark and experiment scripts pass `provider`,
+`model_name` and `device` to try others. Hugging Face models cache under
+`backend/.cache/huggingface`.
 
 Tests: backend `tests/` has about 20 lyrics test files (`test_lyrics_*`, `test_batch_align_lyrics`,
 `test_syncedlyrics_service`). Frontend has `lrcParser.test.ts`, `activeLineTiming.test.ts` and

@@ -1,76 +1,79 @@
 #!/bin/bash
-# Production Environment - Docker Compose
-# Starts all services with production configuration
+# Open Karaoke Studio - Docker Compose helper
+# Builds, starts and looks after the Docker stack in docker-compose.yml.
+# Settings come from .env at the project root, which Compose reads itself.
 
 set -e
 
-echo "🎤 Open Karaoke Studio - Docker Production Environment"
-echo "======================================================="
-echo ""
+# Run from the project root, wherever the script is called from
+cd "$(dirname "$0")/.."
 
-# Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Check for .env.docker file
-if [ ! -f ".env.docker" ]; then
-    echo -e "${RED}❌ Error: .env.docker file not found${NC}"
-    echo ""
-    echo "Please create .env.docker from .env.docker.example:"
-    echo "  cp .env.docker.example .env.docker"
-    echo ""
-    echo "Then update the values in .env.docker with your production settings."
-    exit 1
-fi
+# Refuse to start without the secrets production needs, rather than letting
+# the API container fail its health check with the reason buried in its logs.
+check_env() {
+    if [ ! -f ".env" ]; then
+        echo -e "${RED}❌ .env not found${NC}"
+        echo ""
+        echo "Create it from the example and fill in the secrets:"
+        echo "  cp .env.example .env"
+        exit 1
+    fi
 
-# Load environment variables
-export $(cat .env.docker | grep -v '^#' | xargs)
+    local missing=()
+    for var in JWT_SECRET_KEY SECRET_KEY; do
+        local value
+        value=$(grep -E "^${var}=" .env | tail -n 1 | cut -d= -f2-)
+        if [ -z "$value" ] || [[ "$value" == change-me* ]]; then
+            missing+=("$var")
+        fi
+    done
 
-# Parse command line arguments
+    if [ ${#missing[@]} -gt 0 ]; then
+        echo -e "${RED}❌ Set these in .env first: ${missing[*]}${NC}"
+        echo ""
+        echo "Generate a value with:  openssl rand -hex 32"
+        exit 1
+    fi
+
+    if ! grep -qE '^ADMIN_USERNAME=.+' .env || ! grep -qE '^ADMIN_PASSWORD=.+' .env; then
+        echo -e "${YELLOW}⚠️  ADMIN_USERNAME / ADMIN_PASSWORD aren't set in .env.${NC}"
+        echo "   Fine if an admin already exists; on a fresh install nobody can sign in."
+        echo ""
+    fi
+}
+
 COMMAND=${1:-up}
 
 case $COMMAND in
     up)
-        echo -e "${BLUE}🚀 Starting production environment...${NC}"
-        echo ""
+        check_env
+        echo -e "${BLUE}🚀 Building and starting...${NC}"
 
-        # Check if karaoke_library exists, create if not
-        if [ ! -d "karaoke_library" ]; then
-            echo -e "${YELLOW}📁 Creating karaoke_library directory...${NC}"
-            mkdir -p karaoke_library
-        fi
+        # Docker would create a missing bind-mount folder owned by root
+        mkdir -p karaoke_library secrets
 
-        # Build containers
-        echo -e "${BLUE}🔨 Building containers...${NC}"
-        docker compose build
-
-        # Start services
-        echo -e "${BLUE}🚀 Starting services...${NC}"
-        docker compose up -d
+        docker compose up -d --build
 
         echo ""
-        echo -e "${GREEN}✅ Production services started!${NC}"
+        echo -e "${GREEN}✅ Started${NC}"
         echo ""
-        echo "🌐 URLs:"
-        echo "   Frontend:  http://localhost:5192"
-        echo "   API:       http://localhost:5123"
+        echo "   App:       http://localhost:5192"
+        echo "   API:       http://localhost:15123"
         echo ""
-        echo "📋 Useful commands:"
-        echo "   View logs:          ./scripts/docker-prod.sh logs"
-        echo "   View logs (follow): ./scripts/docker-prod.sh logs -f"
-        echo "   Stop services:      ./scripts/docker-prod.sh down"
-        echo "   Restart services:   ./scripts/docker-prod.sh restart"
-        echo ""
-        echo "🔍 Check status:      docker compose ps"
+        echo "   Logs:      $0 logs -f"
+        echo "   Status:    docker compose ps"
         ;;
 
     down)
-        echo -e "${BLUE}🛑 Stopping production environment...${NC}"
+        echo -e "${BLUE}🛑 Stopping...${NC}"
         docker compose down
-        echo -e "${GREEN}✅ Services stopped${NC}"
+        echo -e "${GREEN}✅ Stopped${NC}"
         ;;
 
     logs)
@@ -79,55 +82,50 @@ case $COMMAND in
         ;;
 
     restart)
-        echo -e "${BLUE}🔄 Restarting production environment...${NC}"
+        echo -e "${BLUE}🔄 Restarting...${NC}"
         docker compose restart
-        echo -e "${GREEN}✅ Services restarted${NC}"
+        echo -e "${GREEN}✅ Restarted${NC}"
         ;;
 
     update)
-        echo -e "${BLUE}🔄 Updating production environment...${NC}"
-        docker compose down
+        check_env
+        echo -e "${BLUE}🔄 Rebuilding...${NC}"
+        # Build while the old containers keep serving, then swap them in
         docker compose build
         docker compose up -d
-        echo -e "${GREEN}✅ Update complete${NC}"
+        echo -e "${GREEN}✅ Updated${NC}"
         ;;
 
     backup)
-        echo -e "${BLUE}💾 Creating backup...${NC}"
+        # The database holds every song's metadata, lyrics and sessions. Song
+        # audio lives in karaoke_library/ and is too large to copy here; back
+        # that folder up separately if you need to.
         BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
         mkdir -p "$BACKUP_DIR"
-
-        # Backup database
-        docker exec karaoke-postgres-prod pg_dump -U karaoke_user karaoke > "$BACKUP_DIR/database.sql"
-
-        # Backup karaoke library (excluding audio files if too large)
-        tar -czf "$BACKUP_DIR/library_metadata.tar.gz" karaoke_library/*.json 2>/dev/null || true
-
-        echo -e "${GREEN}✅ Backup created in $BACKUP_DIR${NC}"
+        echo -e "${BLUE}💾 Dumping the database...${NC}"
+        docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$BACKUP_DIR/database.sql"
+        echo -e "${GREEN}✅ $BACKUP_DIR/database.sql${NC}"
         ;;
 
     shell-api)
-        echo -e "${BLUE}🐚 Opening shell in API container...${NC}"
-        docker exec -it karaoke-api-prod /bin/bash
+        docker compose exec api /bin/bash
         ;;
 
     shell-celery)
-        echo -e "${BLUE}🐚 Opening shell in celery container...${NC}"
-        docker exec -it karaoke-celery-prod /bin/bash
+        docker compose exec celery /bin/bash
         ;;
 
     *)
         echo "Usage: $0 {up|down|logs|restart|update|backup|shell-api|shell-celery}"
         echo ""
-        echo "Commands:"
-        echo "  up             - Build and start all services"
-        echo "  down           - Stop all services"
-        echo "  logs           - View logs (add -f to follow)"
-        echo "  restart        - Restart all services"
-        echo "  update         - Rebuild and restart services"
-        echo "  backup         - Create backup of database and metadata"
-        echo "  shell-api      - Open shell in API container"
-        echo "  shell-celery   - Open shell in Celery container"
+        echo "  up             Build and start everything"
+        echo "  down           Stop everything"
+        echo "  logs           Show logs (add -f to follow, or a service name)"
+        echo "  restart        Restart the containers without rebuilding"
+        echo "  update         Rebuild, then swap in the new containers"
+        echo "  backup         Dump the database to backups/"
+        echo "  shell-api      Open a shell in the API container"
+        echo "  shell-celery   Open a shell in the Celery container"
         exit 1
         ;;
 esac

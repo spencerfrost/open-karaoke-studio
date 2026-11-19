@@ -1,6 +1,5 @@
 import gc
 import logging
-import os
 import threading
 import time
 
@@ -8,26 +7,13 @@ import torch
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_IDLE_SECONDS = 30 * 60
+# Release cached VRAM after this long with no GPU work
+IDLE_CLEANUP_SECONDS = 30 * 60
 _lock = threading.Lock()
 _active_gpu_users = 0
 _last_gpu_activity_monotonic = 0.0
 _cleanup_generation = 0
 _cleanup_timer: threading.Timer | None = None
-
-
-def get_gpu_idle_cleanup_seconds() -> int:
-    """Return the configured idle timeout before VRAM cleanup runs."""
-    raw_value = os.getenv("GPU_IDLE_CLEANUP_SECONDS", str(_DEFAULT_IDLE_SECONDS))
-    try:
-        return max(0, int(raw_value))
-    except ValueError:
-        logger.warning(
-            "Invalid GPU_IDLE_CLEANUP_SECONDS=%r; defaulting to %d seconds",
-            raw_value,
-            _DEFAULT_IDLE_SECONDS,
-        )
-        return _DEFAULT_IDLE_SECONDS
 
 
 def begin_gpu_activity(reason: str) -> None:
@@ -55,7 +41,7 @@ def end_gpu_activity(reason: str) -> None:
     if not torch.cuda.is_available():
         return
 
-    timeout_seconds = get_gpu_idle_cleanup_seconds()
+    timeout_seconds = IDLE_CLEANUP_SECONDS
     cleanup_generation = None
 
     with _lock:

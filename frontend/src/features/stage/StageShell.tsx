@@ -144,30 +144,37 @@ const StageShell: React.FC<StageShellProps> = ({
   // gap it opens is the moment the whole rotation exists for - so the shell
   // watches for it rather than waiting to be told.
   //
+  // The same gap exists before the first song: songs queued from phones while
+  // nothing is loaded would otherwise leave the player saying the queue is
+  // empty. Nothing starts by itself either way; the screen waits for a person.
+  //
   // Only from the performance screen: someone browsing the library when a song
   // runs out should not be yanked away mid-scroll.
   const songEnded = usePlaybackStateStore((state) => state.songEnded);
+  const waitingToStart = !current && upcoming.length > 0;
+  const betweenSongs = songEnded || waitingToStart;
   useEffect(() => {
-    if (songEnded) {
+    if (betweenSongs) {
       setScreen((s) => (s.name === "performance" ? { name: "handoff" } : s));
     } else {
       setScreen((s) => (s.name === "handoff" ? { name: "performance" } : s));
     }
-  }, [songEnded]);
+  }, [betweenSongs]);
 
   // Read by `back` rather than listed as its dependencies: both change on
   // every queue broadcast, and the shell API must keep one identity.
-  const queueRef = useRef({ turn, upcoming });
-  queueRef.current = { turn, upcoming };
+  const queueRef = useRef({ turn, upcoming, waitingToStart });
+  queueRef.current = { turn, upcoming, waitingToStart };
 
   // Confirm and add are detours off song select; song select falls back to the
   // player. The add flow walks back through its own screens (album, artist,
   // search) first; otherwise there is no deeper history to keep, which is the
   // point.
   //
-  // Unless the song has ended: the player would only show a finished song. If
-  // the next singer has a song, their handoff screen is the place to be;
-  // otherwise the library is, so stay in it.
+  // Unless the song has ended, or none has started while songs wait: the player
+  // would only show a finished song or an empty queue. If the next singer has a
+  // song, their handoff screen is the place to be; otherwise the library is, so
+  // stay in it.
   //
   // openPerformance itself stays unconditional. "Sing it now" calls it before
   // the new song has loaded, while songEnded still describes the old one.
@@ -177,10 +184,14 @@ const StageShell: React.FC<StageShellProps> = ({
         return { name: "add", stack: current_.stack.slice(0, -1) };
       }
       if (current_.name !== "select") return { name: "select" };
-      if (!usePlaybackStateStore.getState().songEnded) {
+      const {
+        turn: turn_,
+        upcoming: upcoming_,
+        waitingToStart: waiting_,
+      } = queueRef.current;
+      if (!usePlaybackStateStore.getState().songEnded && !waiting_) {
         return { name: "performance" };
       }
-      const { turn: turn_, upcoming: upcoming_ } = queueRef.current;
       return findTurnItem(turn_, upcoming_) ? { name: "handoff" } : current_;
     });
   }, []);

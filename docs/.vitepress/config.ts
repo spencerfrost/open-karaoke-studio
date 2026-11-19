@@ -28,6 +28,7 @@ export default withMermaid(defineConfig({
           text: 'Getting Started',
           items: [
             { text: 'Introduction', link: '/' },
+            { text: 'Self-Hosting', link: '/self-hosting' },
             { text: 'User Guide', link: '/guide' },
             { text: 'Architecture Overview', link: '/architecture' },
           ]

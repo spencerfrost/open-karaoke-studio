@@ -1,0 +1,15 @@
+# Gives the Celery worker an NVIDIA GPU. Needs the NVIDIA Container Toolkit.
+# Use it alongside docker-compose.yml, either per command:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# or for every command, by setting this in .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml
+
+services:
+  celery:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
