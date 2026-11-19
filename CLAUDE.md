@@ -56,4 +56,4 @@ The docs are a VitePress site in `docs/` (`cd docs && pnpm run build`).
 - **[docs/features.md](docs/features.md)** — What a user can do
 - **[docs/api/](docs/api/)**, **[docs/websocket-protocol.md](docs/websocket-protocol.md)** — Endpoint and message reference
 - **[docs/tech-debt.md](docs/tech-debt.md)** · **[docs/roadmap.md](docs/roadmap.md)**
-- **[docs/plans/](docs/plans/)** — Working plans (not published on the site)
+- **[docs/plans/](docs/plans/)** — Working plans, local only (gitignored, not published)
