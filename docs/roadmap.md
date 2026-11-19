@@ -3,9 +3,6 @@
 What's left to do. Built around how the app actually gets used: a living-room night with
 5–10 people, a TV, a mouse on the mic stand, and phones.
 
-The working plans behind these tasks are in `docs/plans/` in the repo, indexed by
-`docs/plans/README.md`. They are internal and not part of this site.
-
 **Last updated:** 2026-11-09
 
 ---
@@ -123,6 +120,10 @@ Shipped on `develop`. Some still need a check on the TV, noted below.
 | Theme switching from Settings, then text tiers, surface steps and decoration colors that every theme fills in | `d713e1592`, `4f33d4845`, `db6722ba2`, `dd83bbe85`, `82310e4b5` | — |
 | Three-track engine ~3x faster with the same sound (58 → 20 s a song on the 3080 Ti) | `da371a7f2` (2026-10-10) | — |
 | Backend tests: one folder for endpoint tests, job tests on real rows, coverage back over the gate | `08476ea1e`..`3ddcfde85` | — |
+| Queueing a song brings it up to date: a version per processing step, and a queued song runs the steps it's behind on | `24e4bdf41`, `174657fbd` (2026-11-11, 2026-11-18) | Prod: the migration and a Celery restart. Then queue a real song and watch its steps run once |
+| **Fix this line** on the stage: a host fixes one line's words while the song plays; the line is re-aligned alone and no job overwrites it | `452d7668f` (2026-11-18) | Try it on the TV with the mic-stand mouse. Prod: the migration, a rebuild and a Celery restart |
+| Retro and vintage themes: today's look became vintage, a new near-black retro, cyberpunk the default | `414866811`, `965b26848` (2026-11-09, 2026-11-18) | Walk the stage and wheel at 960×540 on the TV, the player, performance controls, admin, and pages with real library data |
+| Cyberpunk and Catppuccin Mocha themes, pickable in Settings | `58b820192`, `492b6da6a` (2026-10-10) | Walk Catppuccin's pages in a browser; tune cyberpunk on real screens and the TV |
 
 ---
 
@@ -159,8 +160,7 @@ a low priority by default.
   [phone controls canvas](https://claude.ai/artifact/QrGduNZSDkqfqfRGzqMvm3).
 
 ### Lyrics
-- **First-class lyrics, ongoing.** The [lyrics roadmap](https://github.com/spencerfrost/open-karaoke-studio/blob/master/docs/plans/2026-10-28-lyrics-roadmap.md) is
-  a living plan for alignment quality, backing vocals, multiple singers, language-model line
+- **First-class lyrics, ongoing.** Ongoing work on alignment quality, backing vocals, multiple singers, language-model line
   breaks, and benchmarking each new model as it comes out.
 - **Verse/chorus line breaks** inferred from timing gaps in synced lyrics.
 - **Align lyrics to the true vocal start**, ignoring intro "ooh"s the separation picked up.

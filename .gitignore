@@ -79,7 +79,7 @@ docs/.vitepress/dist/
 docs/dist/
 docs/.env.local
 docs/.env.*.local
-docs/plans/archive
+docs/plans/
 
 # Claude Code / worktrees
 .claude/
