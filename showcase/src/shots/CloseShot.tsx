@@ -5,7 +5,7 @@ import { Backdrop, Overlay } from "../components/Backdrop";
 import { color, font } from "../theme";
 
 /**
- * The end card: bunny, name, what it is, where to get it. Shot length in
+ * The end card: bunny, name, what it is, where to try it, where to get it. Shot length in
  * beats; the last ones let the song fade out under the card.
  */
 export const CLOSE_SHOT_BEATS = 10;
@@ -21,6 +21,7 @@ export const CloseShot: React.FC<{ beats?: BeatFrames }> = ({ beats = evenBeats(
   const bunny = spring({ frame: frame - beats[0], fps, config: { damping: 10, stiffness: 150 } });
   const word = spring({ frame: frame - beats[1], fps, config: { damping: 14 } });
   const link = spring({ frame: frame - beats[5], fps, config: { damping: 16 } });
+  const repo = spring({ frame: frame - beats[6], fps, config: { damping: 16 } });
   const bob = Math.sin(frame / 14) * 4;
 
   return (
@@ -80,11 +81,26 @@ export const CloseShot: React.FC<{ beats?: BeatFrames }> = ({ beats = evenBeats(
           style={{
             marginTop: 40,
             fontFamily: font.body,
-            fontWeight: 500,
-            fontSize: 36,
-            color: color.dim,
+            fontWeight: 700,
+            fontSize: 44,
+            color: color.cyan,
+            textShadow: "0 0 24px rgba(5,217,232,0.5)",
+            letterSpacing: 1,
             opacity: link,
             transform: `translateY(${(1 - link) * 20}px)`,
+          }}
+        >
+          karaoke.mrspinn.ca
+        </div>
+        <div
+          style={{
+            marginTop: 10,
+            fontFamily: font.body,
+            fontWeight: 500,
+            fontSize: 32,
+            color: color.dim,
+            opacity: repo,
+            transform: `translateY(${(1 - repo) * 20}px)`,
           }}
         >
           github.com/spencerfrost/open-karaoke-studio
