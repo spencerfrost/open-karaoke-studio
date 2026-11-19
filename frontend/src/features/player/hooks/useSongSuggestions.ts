@@ -10,8 +10,8 @@ import { useSongs } from "@/hooks/api/useSongs";
 import type { Song } from "@/types/Song";
 
 export interface SuggestionContext {
-  /** The song that just finished playing */
-  currentSong: Song;
+  /** The song that just finished playing. Only its id and artist are read. */
+  currentSong: Pick<Song, "id" | "artist">;
   /** Optional: Limit the number of suggestions */
   limit?: number;
 }

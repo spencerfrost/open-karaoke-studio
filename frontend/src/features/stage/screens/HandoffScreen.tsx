@@ -364,9 +364,9 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
             aria-label={`Play ${nextItem.song.title}`}
           >
             <div className="relative flex size-48 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-overlay/60 shadow-2xl [@media(max-height:600px)]:size-32">
-              {getArtworkUrl(nextItem.song, "large") ? (
+              {nextItem.song.coverArt ? (
                 <img
-                  src={getArtworkUrl(nextItem.song, "large") ?? undefined}
+                  src={nextItem.song.coverArt}
                   alt=""
                   className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />

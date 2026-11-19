@@ -1,5 +1,3 @@
-import { Song } from "./Song";
-
 export interface KaraokeQueueItem {
   id: string;
   songId: string;
@@ -13,8 +11,26 @@ export interface KaraokeQueueItem {
   addedAt: string;
 }
 
+/**
+ * The song as a queue item carries it: what the stage and phones show for a
+ * queued song, not the library's full record (`SongInfo` in
+ * backend/app/api/karaoke_queue.py). Queue broadcasts reach every phone, so
+ * they stay small.
+ */
+export interface QueueSong {
+  id: string;
+  title: string;
+  artist: string;
+  album?: string | null;
+  duration?: number | null;
+  /** Album cover, else the video thumbnail; null when the song has neither. */
+  coverArt?: string | null;
+  syncedLyrics?: string | null;
+  plainLyrics?: string | null;
+}
+
 export interface KaraokeQueueItemWithSong extends KaraokeQueueItem {
-  song: Song;
+  song: QueueSong;
 }
 
 /** A performer as the turn payload names them. */
