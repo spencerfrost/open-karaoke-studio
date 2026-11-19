@@ -17,6 +17,7 @@ from app.services.gpu_memory import (
 )
 from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_line_fixes import apply_fixes_to_attempts
+from app.services.lyrics_line_split import split_long_lines
 from app.services.lyrics_selection import SongData, select_initial_lyrics
 from app.services.lyrics_timing import log_lyrics_event
 
@@ -226,6 +227,20 @@ def _persist_initial_lyrics_candidate(
     return (persisted_plain_lyrics, persisted_synced_lyrics)
 
 
+def _with_long_lines_split(
+    content: str, payload: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    """The LRC and word payload to store, with lines too long to be one line cut.
+
+    Cut from the words' timing (services/lyrics_line_split), so it runs on
+    lyrics just aligned, before they're stored.
+    """
+    split = split_long_lines(content, payload)
+    if split is None:
+        return content, payload
+    return split["synced_lyrics"], split["word_payload"]
+
+
 def _build_word_sync_payload(
     result: Mapping[str, Any],
     *,
@@ -363,16 +378,17 @@ def store_offset_corrected_lrc(
         song = _fetch_song_for_write(session, song_id, run_token)
         if not song:
             return None
-        song.synced_lyrics = corrected_lrc
-        song.word_synced_lyrics = json.dumps(
+        song.synced_lyrics, payload = _with_long_lines_split(
+            corrected_lrc,
             _build_word_sync_payload(
                 result,
                 source_type="synced",
                 source=source,
                 attempt_index=attempt_index,
                 offset_applied=shift,
-            )
+            ),
         )
+        song.word_synced_lyrics = json.dumps(payload)
         session.commit()
 
     return result
@@ -618,10 +634,10 @@ def _retime_from_asr(
             song = _fetch_song_for_write(session, song_id, run_token)
             if not song:
                 return None
-            song.synced_lyrics = lrc
             if attempt["source_type"] == "plain":
                 song.plain_lyrics = attempt["content"]
-            song.word_synced_lyrics = json.dumps(
+            song.synced_lyrics, payload = _with_long_lines_split(
+                lrc,
                 _build_word_sync_payload(
                     fitted,
                     source_type="synced",
@@ -630,8 +646,9 @@ def _retime_from_asr(
                     retimed_from=attempt["source_type"],
                     retimed_by=asr_source,
                     retime_match_ratio=plan["match_ratio"],
-                )
+                ),
             )
+            song.word_synced_lyrics = json.dumps(payload)
             session.commit()
 
         return {
@@ -1529,16 +1546,18 @@ def _align_song_lyrics(
 
                 # The words index into this candidate's text, so its text is
                 # stored with them, replacing whatever was there before.
-                should_persist_synced_lyrics = song.synced_lyrics != attempt["content"]
-                song.synced_lyrics = attempt["content"]
-                song.word_synced_lyrics = json.dumps(
+                stored_lyrics, payload = _with_long_lines_split(
+                    attempt["content"],
                     _build_word_sync_payload(
                         fitted,
                         source_type=source_type,
                         source=source_label,
                         attempt_index=idx + 1,
-                    )
+                    ),
                 )
+                should_persist_synced_lyrics = song.synced_lyrics != stored_lyrics
+                song.synced_lyrics = stored_lyrics
+                song.word_synced_lyrics = json.dumps(payload)
 
                 session.commit()
 

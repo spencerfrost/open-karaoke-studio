@@ -518,6 +518,39 @@ def batch_sweep_lrc_offsets(
     return {"mode": mode, "processed": sum(counts.values()), **counts}
 
 
+@celery.task(name="batch_split_long_lyric_lines")
+def batch_split_long_lyric_lines(
+    mode: str = "missing", run_id: Optional[int] = None
+) -> dict:
+    """Batch task: cut stored lyric lines too long to be one line.
+
+    Text work only, from the word timing already stored (no audio, no GPU),
+    one song after another. See services/lyrics_line_split.
+    """
+    from .lyrics_line_tasks import split_stored_long_lines
+
+    counts = {"split": 0, "fine": 0, "no_timing": 0, "error": 0}
+
+    with tracked_run(run_id) as run:
+        song_ids = run.begin(lambda: _select("long_lyric_lines", mode))
+        logger.info("batch_split_long_lyric_lines: %d songs", len(song_ids))
+        for song_id in run.each(song_ids):
+            try:
+                outcome = split_stored_long_lines(song_id)
+            except Exception:
+                logger.error(
+                    "batch_split_long_lyric_lines: song %s failed",
+                    song_id,
+                    exc_info=True,
+                )
+                outcome = "error"
+            counts[outcome] += 1
+            run.song_done(ok=outcome != "error")
+
+    logger.info("batch_split_long_lyric_lines: done — %s", counts)
+    return {"processed": sum(counts.values()), **counts}
+
+
 @celery.task(name="batch_rebuild_artist_credits")
 def batch_rebuild_artist_credits(
     mode: str = "preview", run_id: Optional[int] = None

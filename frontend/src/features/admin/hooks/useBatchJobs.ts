@@ -12,6 +12,7 @@ export type JobKind =
   | "artist_images"
   | "lyrics_alignment"
   | "lrc_offset"
+  | "long_lyric_lines"
   | "artist_credits";
 
 export type RunMode =

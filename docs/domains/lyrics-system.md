@@ -346,6 +346,15 @@ The rules behind those boxes:
   its words matched to be used.
 - **ASR text replaces lyrics only when there were no usable candidates at all**, meaning no
   lyrics anywhere or only rejected ones. Existing lyrics are never overwritten by a transcript.
+- **Lines are cut from the words' timing, not taken as the ASR hands them back.** WhisperX
+  returns chunks of up to ~30 s of singing and splits one only where it heard a sentence end,
+  so a verse sung without full stops would be one line. [lyrics_line_split.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_line_split.py)
+  cuts a transcript at a pause over 1.25 s and after a sentence end, then cuts any line over
+  12 words where the singer pauses longest (a comma counts as a little more pause). Qwen3's
+  word stream goes through the same rules. Stored LRCs are cut too, when an alignment is saved
+  (`_with_long_lines_split`), but only lines over 20 words: rap verses from lyrics sites run past
+  12 on purpose. A cut line's first part keeps its timestamp, later parts start at their first
+  word, and a break line timed inside the long line moves to its end.
 - **Words must read as the stored LRC.** `_fit_words_to_lyrics` re-derives every word's
   `line_index` from the exact text being stored and rejects the result if the words don't match
   that text token by token.
@@ -629,6 +638,25 @@ flowchart LR
 - The job runs song by song inside one task on the enrichment worker, so it stops, pauses and
   resumes between songs, and a full GPU waits a minute and tries the song again (three times).
 
+### Long lyric lines job
+
+Lyrics stored before line cutting existed, or aligned on a path that skips it, can still have
+a line too long for the screen. The **Long lyric lines** job (`batch_split_long_lyric_lines`,
+per-song work `split_stored_long_lines` in [lyrics_line_tasks.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/lyrics_line_tasks.py))
+applies the same cut to songs with synced lyrics and word timing:
+
+- **What counts as too long depends on who wrote the lines.** A transcript (word payload
+  `lyrics_source` `asr:*`) is cut past 12 words, as a new one would be; any other LRC past 20.
+  A transcript re-timed later reads `db:synced` and is held to 20, so its 13–20-word lines stay.
+- **Text work only.** It reads the stored word timing, cuts the LRC, renumbers the words'
+  `line_index` and, when the plain lyrics are the synced lines' text (as ASR stores them),
+  rebuilds them. The words, their times and the lyrics' words key don't change, so reports and
+  line fixes still find their song and line, and a current offset sweep's `lrc_offset_lrc_md5`
+  moves to the new text instead of going stale.
+- **A line whose stored words aren't its text stays whole**, and the song stays counted as
+  missing. Selection counts words in Python over every timed song (`_long_lyric_line_ids` in
+  [batch_jobs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/batch_jobs.py)). It has only a `missing` mode.
+
 ## Frontend: from columns to pixels
 
 ### The render path
@@ -742,7 +770,7 @@ been reproduced in the app.
 |---|---|---|
 | LRC line parser | 2, with different index schemes | `lyrics_analysis.parse_lrc_lines`, `lrcParser.parseLrc` ([above](#two-line-index-namespaces)) |
 | LRC timestamp regex | 2 backend + 5 frontend, with different strictness | `lyrics_analysis`, `lyrics_offset`; `lrcParser`, `lrcUtils` ×2, `LyricsPreview`, `LyricsCard`, `upload/LyricsTab` |
-| LRC timestamp formatter | 4 | `lyrics_retiming._format_timestamp`, `lyrics_offset._seconds_to_lrc_ts`, `lyrics_transcription._format_lrc_timestamp`, inline in `lyrics_analysis._build_modified_lrc` |
+| LRC timestamp formatter | 4 | `lyrics_retiming._format_timestamp`, `lyrics_offset._seconds_to_lrc_ts`, `lyrics_line_split.format_lrc_timestamp`, inline in `lyrics_analysis._build_modified_lrc` |
 | "Strip timestamps for a preview" | 4 | `LyricsPreview`, `LyricsCard`, `upload/LyricsTab`, the reports page (via `parseLrc`) |
 | "Does this song have word timing / which layer" | 4 | `activeLineTiming` (per line and per song), `wheelModel.lyricsKind`, `lyrics_repair._word_timing_reasons` |
 | Clear-W-on-save + hand-pick rule | 2 live paths + 4 that only clear W | [Who writes what](#who-writes-what) |

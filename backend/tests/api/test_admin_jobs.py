@@ -1,6 +1,7 @@
 """Tests for the admin background jobs API and batch run progress tracking."""
 
 import itertools
+import json
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -186,7 +187,49 @@ class TestListJobs:
             "lyrics_alignment",
             "artist_credits",
             "lrc_offset",
+            "long_lyric_lines",
         }
+
+    def test_long_lyric_lines_counts_songs_with_a_line_too_long(self, client, db):
+        sixteen = " ".join(f"w{i}" for i in range(16))
+        twenty_five = " ".join(f"w{i}" for i in range(25))
+
+        def song(song_id, line, source):
+            words = [
+                {"word": w, "start": 0.0, "end": 0.1, "line_index": 0}
+                for w in line.split()
+            ]
+            payload = json.dumps({"words": words, "lyrics_source": source})
+            return DbSong(
+                id=song_id,
+                title=song_id,
+                artist="A",
+                synced_lyrics=f"[00:01.00]{line}",
+                word_synced_lyrics=payload,
+            )
+
+        db.add_all(
+            [
+                # 16 words: too long for a transcript, fine in a written LRC.
+                song("transcript", sixteen, "asr:whisperx"),
+                song("written", sixteen, "lrclib:1"),
+                song("written_long", twenty_five, "lrclib:1"),
+                DbSong(
+                    id="untimed", title="u", artist="A", synced_lyrics="[00:01.00]x"
+                ),
+            ]
+        )
+        db.commit()
+
+        job = _jobs_by_kind(client)["long_lyric_lines"]
+
+        assert job["modes"] == ["missing"]
+        assert job["coverage"] == {"have": 1, "of": 3}
+        assert job["modeCounts"] == {"missing": 2}
+        assert sorted(select_ids(db, "long_lyric_lines", "missing")) == [
+            "transcript",
+            "written_long",
+        ]
 
     def test_artist_credits_counts_songs_with_old_credits(self, client, db):
         db.add_all(

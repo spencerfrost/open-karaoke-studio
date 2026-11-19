@@ -1,4 +1,8 @@
-"""Time the words of one fixed lyrics line, leaving the rest of the song alone."""
+"""Work on single lyrics lines, leaving the rest of the song alone.
+
+Time the words of one fixed line (align_lyrics_line), and cut stored lines
+too long to be one line (split_stored_long_lines, the "Long lyric lines" job).
+"""
 
 import json
 from typing import Any, Optional, cast
@@ -207,3 +211,49 @@ def align_lyrics_line(
         _set_fix_status(fix_id, status)
     logger.info("align_lyrics_line: song %s line %s -> %s", song_id, line_index, status)
     return {"status": status, "song_id": song_id, "line_index": line_index}
+
+
+def split_stored_long_lines(song_id: str) -> str:
+    """Cut the song's stored lines that are too long to be one line, from their
+    word timing (services/lyrics_line_split).
+
+    Returns "split", "fine" (no line is too long, or none can be cut: its
+    words aren't its text) or "no_timing" (no synced lyrics with word timing).
+    """
+    from app.db.database import get_db_session
+    from app.repositories.song_repository import SongRepository
+    from app.services.lrc_offset_layer import lrc_md5
+    from app.services.lyrics_line_fixes import read_word_payload
+    from app.services.lyrics_line_split import split_long_lines
+
+    with get_db_session() as session:
+        song = SongRepository(session).fetch(song_id)
+        if song is None:
+            return "no_timing"
+        synced = cast(Optional[str], song.synced_lyrics)
+        payload = read_word_payload(cast(Optional[str], song.word_synced_lyrics))
+        if not synced or payload is None:
+            return "no_timing"
+        split = split_long_lines(
+            synced, payload, cast(Optional[str], song.plain_lyrics)
+        )
+        if split is None:
+            return "fine"
+
+        # Same words at the same times: an offset sweep of the old text holds
+        # for the new one, so it isn't swept again.
+        if cast(Optional[str], song.lrc_offset_lrc_md5) == lrc_md5(synced):
+            song.lrc_offset_lrc_md5 = lrc_md5(split["synced_lyrics"])  # type: ignore[assignment]
+        song.synced_lyrics = split["synced_lyrics"]  # type: ignore[assignment]
+        if split["plain_lyrics"] is not None:
+            song.plain_lyrics = split["plain_lyrics"]  # type: ignore[assignment]
+        song.word_synced_lyrics = json.dumps(split["word_payload"])  # type: ignore[assignment]
+        session.commit()
+
+    log_lyrics_event(song_id, "lyrics_long_lines_split", lines=split["lines_split"])
+    logger.info(
+        "split_stored_long_lines: cut %d long line(s) of song %s",
+        split["lines_split"],
+        song_id,
+    )
+    return "split"

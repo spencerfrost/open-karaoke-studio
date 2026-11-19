@@ -79,6 +79,7 @@ celery.conf.update(
         "batch_align_lyrics": {"queue": "enrichment"},
         "batch_rebuild_artist_credits": {"queue": "enrichment"},
         "batch_sweep_lrc_offsets": {"queue": "enrichment"},
+        "batch_split_long_lyric_lines": {"queue": "enrichment"},
         # Runs on the worker that aligned lyrics, after the song it's on.
         "release_gpu_memory": {"queue": "lyrics"},
     },
