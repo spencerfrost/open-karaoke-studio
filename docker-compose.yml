@@ -6,7 +6,6 @@ services:
   # Redis for Celery message broker
   redis:
     image: redis:7-alpine
-    container_name: karaoke-redis-prod
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -22,10 +21,10 @@ services:
   # PostgreSQL database
   postgres:
     image: postgres:15-alpine
-    container_name: karaoke-postgres-prod
     restart: unless-stopped
     ports:
-      - "15432:5432"  # Optional: external access for debugging/migration
+      # This machine only, for debugging and backups; other hosts can't reach it
+      - "127.0.0.1:15432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-karaoke}
       POSTGRES_USER: ${POSTGRES_USER:-karaoke_user}
@@ -46,7 +45,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: karaoke-api-prod
     restart: unless-stopped
     stop_grace_period: 5s
     ports:
@@ -57,26 +55,20 @@ services:
       - backend_logs:/app/backend/logs
     environment:
       - ENVIRONMENT=production
-      - HOST=0.0.0.0
-      - PORT=5123
       - SECRET_KEY=${SECRET_KEY}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       # First admin, created on startup only while no admin exists.
       - ADMIN_USERNAME=${ADMIN_USERNAME}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
-      - LOG_LEVEL=WARNING
       - CORS_ORIGINS=${CORS_ORIGINS}
       # Trust X-Forwarded-For from the bundled nginx only (its pinned address
       # below), so per-IP rate limits see the visitor rather than nginx, and a
       # direct caller on :15123 can't fake the header.
-      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-172.30.250.10}
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-${KARAOKE_PROXY_IP:-172.30.250.10}}
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
-      - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
       - YTDLP_COOKIES_FILE=${YTDLP_COOKIES_FILE:-/app/secrets/yt-cookies.txt}
     healthcheck:
@@ -98,7 +90,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: karaoke-celery-prod
     restart: unless-stopped
     stop_grace_period: 10s
     # Three workers (audio, lyrics, enrichment), each in a restart loop; see the script
@@ -113,17 +104,12 @@ services:
     environment:
       - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torch/inductor
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-karaoke_user}:${POSTGRES_PASSWORD:-karaoke_pass}@postgres:5432/${POSTGRES_DB:-karaoke}
       - LIBRARY_DIR=/app/karaoke_library
-      - LOG_LEVEL=WARNING
       - CELERY_LOG_LEVEL=warning
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-      - GPU_IDLE_CLEANUP_SECONDS=1800
       - OMP_NUM_THREADS=1
       - DISCOGS_TOKEN=${DISCOGS_TOKEN}
-      - LASTFM_API_KEY=${LASTFM_API_KEY}
       - ACOUSTID_API_KEY=${ACOUSTID_API_KEY}
       - YTDLP_COOKIES_FILE=${YTDLP_COOKIES_FILE:-/app/secrets/yt-cookies.txt}
     depends_on:
@@ -133,16 +119,13 @@ services:
         condition: service_healthy
       api:
         condition: service_healthy
+    # Runs on the CPU here; docker-compose.gpu.yml gives it an NVIDIA GPU.
+    # Lower the limits in .env on a smaller machine.
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 12G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+          cpus: '${CELERY_CPU_LIMIT:-4}'
+          memory: ${CELERY_MEMORY_LIMIT:-12G}
     networks:
       - karaoke-network
 
@@ -156,7 +139,6 @@ services:
         VITE_DEMO_RECORDING_URL: ${VITE_DEMO_RECORDING_URL:-}
         # Docs site the guided tour's "how this works" links point to; hidden when empty.
         VITE_DOCS_URL: ${VITE_DOCS_URL:-}
-    container_name: karaoke-frontend-prod
     restart: unless-stopped
     stop_grace_period: 5s
     ports:
@@ -167,8 +149,8 @@ services:
     networks:
       karaoke-network:
         # Pinned: the API trusts X-Forwarded-For from this address only
-        # (FORWARDED_ALLOW_IPS on the api service).
-        ipv4_address: 172.30.250.10
+        # (FORWARDED_ALLOW_IPS on the api service). Must sit inside KARAOKE_SUBNET.
+        ipv4_address: ${KARAOKE_PROXY_IP:-172.30.250.10}
 
 volumes:
   redis_data:
@@ -179,6 +161,8 @@ volumes:
 networks:
   karaoke-network:
     driver: bridge
+    # Fixed so nginx can have a pinned address. Change KARAOKE_SUBNET and
+    # KARAOKE_PROXY_IP in .env if it clashes with another Docker network.
     ipam:
       config:
-        - subnet: 172.30.250.0/24
+        - subnet: ${KARAOKE_SUBNET:-172.30.250.0/24}

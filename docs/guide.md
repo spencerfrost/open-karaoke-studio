@@ -99,19 +99,27 @@ nano .env
 **Key Environment Variables:**
 
 ```bash
-# Database
-DATABASE_URL=sqlite:///backend/karaoke.db  # SQLite for dev
-# DATABASE_URL=postgresql://user:pass@localhost/karaoke  # PostgreSQL for production
+# Secrets
+JWT_SECRET_KEY=a-long-random-string
+SECRET_KEY=another-long-random-string
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=a-long-password
 
-# Backend
-FLASK_SECRET_KEY=your-secret-key-here
+# Development addresses (Docker sets its own in docker-compose.yml)
+DATABASE_URL=postgresql://karaoke_user:karaoke_pass@localhost/karaoke
 CELERY_BROKER_URL=redis://localhost:6379/0
-
-# Paths
-LIBRARY_PATH=/path/to/karaoke_library
+# LIBRARY_DIR=/path/to/karaoke_library  # defaults to ./karaoke_library
 
 # Docker: proxies whose X-Forwarded-For the API trusts (defaults to the bundled nginx)
 # FORWARDED_ALLOW_IPS=172.30.250.10
+
+# Docker: private network, if the default clashes with another Docker network
+# KARAOKE_SUBNET=172.30.250.0/24
+# KARAOKE_PROXY_IP=172.30.250.10
+
+# Docker: the Celery worker's CPU and memory ceiling
+# CELERY_CPU_LIMIT=4
+# CELERY_MEMORY_LIMIT=12G
 
 # Docker: link for the entry page's "Watch the demo" button (hidden when unset).
 # A frontend build arg, so rebuild the frontend image after changing it.
@@ -122,34 +130,8 @@ LIBRARY_PATH=/path/to/karaoke_library
 # VITE_DOCS_URL=https://example.com/docs/
 ```
 
-#### Client IPs behind the proxy
-
-Per-IP rate limits (login, session join, the [live demo](/demo-accounts)) need each visitor's real
-address. In Docker, requests reach the API through the frontend's nginx, so the API has to read it
-from `X-Forwarded-For`, and must only believe that header from nginx.
-
-```mermaid
-flowchart LR
-    V["Visitor"] --> O["Your reverse proxy<br/><i>optional</i>"]
-    O --> N["nginx (frontend)<br/><i>pinned at 172.30.250.10</i>"]
-    V -.-> N
-    N -->|"X-Forwarded-For:<br/>…, visitor"| A["API (uvicorn)<br/><i>trusts FORWARDED_ALLOW_IPS only</i>"]
-    D["Direct caller on :15123"] -->|"keyed on its own address"| A
-```
-
-- `docker-compose.yml` gives `karaoke-network` the fixed subnet `172.30.250.0/24` and pins the
-  frontend container to `172.30.250.10`. `FORWARDED_ALLOW_IPS` defaults to that one address.
-- nginx sends `$proxy_add_x_forwarded_for`: whatever the client sent, with the address nginx saw
-  appended last. uvicorn reads the header right to left and trusts only nginx, so it takes that
-  last entry and ignores anything a client wrote in front of it. This needs `uvicorn>=0.40.0`,
-  which `backend/requirements.txt` requires.
-- **Behind your own reverse proxy**, add its address to `FORWARDED_ALLOW_IPS` (comma-separated IPs
-  or CIDRs), so uvicorn passes through it to the visitor's address. Never add a range that direct
-  callers can come from.
-- The API port `15123` is still published to the host. A caller that connects to it directly is
-  keyed on its own address, since it isn't a trusted proxy.
-- Changing the subnet needs `docker compose down` and then `up`: Docker doesn't change an existing
-  network's subnet in place.
+For running it with Docker, behind your own reverse proxy, and how the API reads visitors'
+real addresses, see [Self-Hosting](/self-hosting).
 
 ### 4. Database Setup
 

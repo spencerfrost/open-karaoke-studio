@@ -95,3 +95,6 @@ docs/plans/archive
 **/datasets--*/
 **/spaces--*/
 case-study.json
+
+# Database dumps from scripts/docker-prod.sh backup
+backups/

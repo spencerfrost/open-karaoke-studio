@@ -1,46 +1,87 @@
 # Contributing
 
-This project welcomes contributions! Here's how to get involved:
+How to run Open Karaoke Studio from source and work on it. To just run it, see
+[Self-Hosting](/self-hosting).
 
-## Development Setup
+## Setup
 
-1. Clone the repository
-2. Install dependencies: `pnpm install` (installs all workspaces)
-3. Start development with `./scripts/dev.sh` or `pnpm dev:frontend`
+**You need:** Python 3.13, Node.js 20+ with pnpm, Postgres, Redis, FFmpeg and tmux. A CUDA GPU is
+optional but makes separation much faster.
 
-## Workspace Structure
+```bash
+git clone https://github.com/spencerfrost/open-karaoke-studio.git
+cd open-karaoke-studio
 
-This is a pnpm monorepo with workspaces:
-- **frontend**: React 19 + TypeScript in `/frontend`
-- **docs**: VitePress documentation in `/docs`
-- **backend**: FastAPI in `/backend`
+cp .env.example .env    # set JWT_SECRET_KEY, SECRET_KEY, ADMIN_USERNAME, ADMIN_PASSWORD, DATABASE_URL
 
-## Making Changes
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+cd ../frontend && pnpm install && cd ..
 
-- **Frontend**: Use TypeScript, follow ShadCN/UI patterns, use TanStack Query + Zustand
-- **Backend**: Use FastAPI async endpoints, follow existing patterns
-- **Docs**: Edit markdown files in `/docs`
+./scripts/dev-tmux.sh   # API, frontend and Celery worker, one tmux pane each
+```
 
-## Running Commands
+On its first start the API creates an admin from `ADMIN_USERNAME` and `ADMIN_PASSWORD` (at least
+8 characters). Sign in with it under **Hosting tonight? Sign in**, then add hosts on
+`/admin/users`. Once an admin exists the two variables are ignored;
+[`backend/scripts/manage_users.py`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/scripts/manage_users.py)
+creates accounts and resets passwords by hand.
 
-From root directory:
-- `pnpm dev:frontend` - Start React dev server
-- `pnpm dev:backend` - Start FastAPI server
-- `pnpm docs:dev` - Start VitePress docs
-- `pnpm build` - Build frontend
-- `pnpm docs:build` - Build docs
-- `pnpm test` - Run tests
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| API | http://localhost:5123 |
+| API docs (Swagger) | http://localhost:5123/docs |
 
-## Code Quality
+The API and frontend reload when files change. The Celery worker doesn't: restart its pane after
+changing anything it runs.
 
-- **Frontend**: `pnpm lint:frontend`, `pnpm run check`
-- **Backend**: `pnpm check:backend`
+## Tests and checks
 
-## Submitting Changes
+```bash
+# Backend (from backend/, with the venv active)
+pytest
+black app/ && isort app/
 
-1. Create a feature branch
-2. Make your changes with clear commits
-3. Ensure tests pass and linting is clean
-4. Submit a pull request
+# Frontend (from frontend/)
+pnpm run type-check
+pnpm run lint:check
+pnpm run format
+pnpm test:run
 
-For questions, check existing documentation or open an issue!
+# Docs (from docs/): fails on dead links
+pnpm run build
+```
+
+## Where things are
+
+| Path | What's there |
+|------|--------------|
+| `backend/app/api/` | REST routers |
+| `backend/app/ws/` | The two WebSocket endpoints: `/ws/jobs` and `/ws/session/{session_id}` |
+| `backend/app/services/`, `repositories/` | Business logic and database access, including the separation engines |
+| `backend/app/jobs/` | Celery tasks: audio, lyrics, enrichment |
+| `backend/alembic/versions/` | Database migrations |
+| `frontend/src/features/` | One folder per area: library, songs, lyrics, session, queue, player, stage, performance, admin, demo, tour |
+| `frontend/src/stores/`, `services/` | Zustand stores and the REST and WebSocket clients |
+| `tv-app/` | The Android TV app for the NVIDIA Shield |
+| `cli/` | `oks-cli`, a Go tool for running the dev services |
+| `showcase/` | The showcase video, made with Remotion |
+| `docs/` | This site |
+
+[Architecture](/architecture) explains how the pieces fit, and links to one doc per area.
+
+## The rule that matters most
+
+Everything about a session (player state, performance controls, the queue) is stored by
+`session_id`. There is no global state shared between sessions. The
+[WebSocket protocol](/websocket-protocol) has the details.
+
+## Making changes
+
+When a change alters behaviour that a doc describes, update that doc in the same commit: the
+area's doc in `docs/domains/`, its page in `docs/api/` for an endpoint, the
+[WebSocket protocol](/websocket-protocol) for a message, and [Features](/features) for anything a
+user can see.
