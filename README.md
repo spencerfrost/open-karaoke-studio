@@ -17,7 +17,7 @@ A self-hosted, full-stack karaoke platform. Songs are downloaded, split into iso
 
 <br />
 
-https://github.com/user-attachments/assets/3b3c0682-e5d3-4441-a831-fbcbcdbe3292
+https://github.com/user-attachments/assets/9fcea62c-0ba1-44da-bb42-eff63d9c4e61
 
 </div>
 
