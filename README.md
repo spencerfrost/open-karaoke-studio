@@ -15,6 +15,12 @@ A self-hosted, full-stack karaoke platform. Songs are downloaded, split into iso
 [![Celery](https://img.shields.io/badge/Celery-Redis-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
+<br />
+
+<a href="docs/images/showcase.mp4"><img src="docs/images/showcase-poster.jpg" alt="Open Karaoke Studio showcase video: lyrics on the TV while a singer's phone controls the mix" width="720" /></a>
+
+**[▶ Watch the 51-second showcase](docs/images/showcase.mp4)**
+
 </div>
 
 ---
