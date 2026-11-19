@@ -17,13 +17,7 @@ A self-hosted, full-stack karaoke platform. Songs are downloaded, split into iso
 
 <br />
 
-<a href="docs/images/showcase.mp4"><img src="docs/images/showcase-poster.jpg" alt="Open Karaoke Studio showcase video: lyrics on the TV while a singer's phone controls the mix" width="720" /></a>
-
-**[▶ Watch the 51-second showcase](docs/images/showcase.mp4)**
-
-
 https://github.com/user-attachments/assets/05f65e1a-61a0-4ac5-8d8d-aa13730d1ff5
-
 
 </div>
 
