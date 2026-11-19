@@ -128,6 +128,25 @@ def test_any_other_attempt_failure_is_not_a_retry(add_song, vocals):
     assert mocks.result is not Retry
 
 
+def test_a_crash_outside_the_attempts_fails_the_job(add_song, vocals):
+    """The job never reads "aligning" after the task has stopped."""
+    add_song(SONG_ID, language="en", synced_lyrics=SYNCED)
+
+    with (
+        patch("app.jobs.lyrics_tasks._align_song_lyrics", side_effect=EOFError()),
+        pytest.raises(EOFError),
+    ):
+        with patch("app.jobs.lyrics_tasks._complete_lyrics_alignment_job") as complete:
+            align_song_lyrics.push_request(retries=0)
+            try:
+                align_song_lyrics.run(SONG_ID)
+            finally:
+                align_song_lyrics.pop_request()
+
+    assert complete.call_args.kwargs["status"] == JobStatus.FAILED
+    assert complete.call_args.kwargs["error"] == "EOFError: "
+
+
 @pytest.mark.parametrize(
     "exc",
     [

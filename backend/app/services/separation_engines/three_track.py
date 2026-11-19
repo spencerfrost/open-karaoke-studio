@@ -23,6 +23,7 @@ that occurs when using subtraction methods.
 
 import contextlib
 import logging
+import os
 import shutil
 import threading
 import time
@@ -79,10 +80,11 @@ def separate_with_three_track(
         song_dir: Path to the directory where processed files will be saved
         status_callback: Function to call with status updates
         stop_event: A threading.Event to check for stop requests
-        on_vocals_ready: Optional callback invoked with the vocals.mp3 path as
-            soon as lead vocals are converted, while de-noise runs. Called from
-            the MP3 encoder thread. Use to dispatch downstream tasks (vocal
-            range, lyrics alignment) as early as possible.
+        on_vocals_ready: Optional callback invoked with the vocals.mp3 path once
+            vocals.mp3 and backing_vocals.mp3 are both written, while the
+            instrumental may still be encoding. Lyrics alignment listens to the
+            two together (app.services.audio.load_sung_vocals), so it's
+            dispatched from here.
 
     Returns:
         True if separation succeeded, False otherwise.
@@ -256,16 +258,10 @@ def separate_with_three_track(
             if stop_event and stop_event.is_set():
                 raise StopProcessingError("Processing stopped by user")
 
-            # Encode lead vocals while de-noise runs; downstream tasks (vocal range,
-            # lyrics alignment) are dispatched as soon as vocals.mp3 exists
+            # Encode lead vocals while de-noise runs
             status_callback("Progress: 62% - Converting lead vocals to MP3...")
             vocals_mp3 = encoder.submit(
-                _export_lead_vocals,
-                lead_vocals_path,
-                vocals_final,
-                bitrate,
-                on_vocals_ready,
-                stop_event,
+                _export_mp3, lead_vocals_path, vocals_final, bitrate
             )
 
             # ===== STEP 3: De-Noise Backing Vocals (73-93% progress) =====
@@ -295,12 +291,14 @@ def separate_with_three_track(
             _export_mp3(cleaned_backing_path, backing_vocals_final, bitrate)
             logger.info("Backing vocals saved to: %s", backing_vocals_final)
 
-            status_callback(
-                "Progress: 97% - Finishing lead vocal and instrumental MP3s..."
-            )
+            status_callback("Progress: 97% - Finishing lead vocal MP3...")
             vocals_mp3.result()
+            logger.info("Lead vocals saved to: %s", vocals_final)
+            _report_vocals_ready(vocals_final, on_vocals_ready, stop_event)
+
+            status_callback("Progress: 98% - Finishing instrumental MP3...")
             instrumental_mp3.result()
-            logger.info("Lead vocals and instrumental saved")
+            logger.info("Instrumental saved to: %s", instrumental_final)
             status_callback("Progress: 99% - Step 4/4 complete")
 
             _ts("mp3_conversion_end")
@@ -334,26 +332,33 @@ def separate_with_three_track(
 
 
 def _export_mp3(wav_path: Path, mp3_path: Path, bitrate: str) -> None:
-    AudioSegment.from_wav(str(wav_path)).export(
-        str(mp3_path), format="mp3", bitrate=bitrate
-    )
+    """Encode a stem to MP3 next to its final name, then rename it into place.
+
+    Other workers read stems while separation runs (alignment, playback of a
+    song being separated again), so a stem is either absent, the old one, or
+    finished, never half-written.
+    """
+    part_path = mp3_path.with_name(f".{mp3_path.name}.part")
+    try:
+        AudioSegment.from_wav(str(wav_path)).export(
+            str(part_path), format="mp3", bitrate=bitrate
+        )
+        os.replace(part_path, mp3_path)
+    finally:
+        part_path.unlink(missing_ok=True)
 
 
-def _export_lead_vocals(
-    wav_path: Path,
-    mp3_path: Path,
-    bitrate: str,
+def _report_vocals_ready(
+    vocals_path: Path,
     on_vocals_ready: Optional[Callable[[Path], None]],
     stop_event: Optional[threading.Event],
 ) -> None:
-    """Write vocals.mp3, then hand it to on_vocals_ready (runs on the encoder thread)."""
-    _export_mp3(wav_path, mp3_path, bitrate)
-    logger.info("[PIPELINE] vocals.mp3 ready at %s", mp3_path)
+    """Hand vocals.mp3 to on_vocals_ready; a failing callback doesn't fail separation."""
     if on_vocals_ready is None or (stop_event and stop_event.is_set()):
         return
     logger.info("[PIPELINE] firing on_vocals_ready callback")
     try:
-        on_vocals_ready(mp3_path)
+        on_vocals_ready(vocals_path)
         logger.info("[PIPELINE] on_vocals_ready callback completed")
     except Exception as e:
         logger.warning("[PIPELINE] on_vocals_ready callback raised: %s", e)

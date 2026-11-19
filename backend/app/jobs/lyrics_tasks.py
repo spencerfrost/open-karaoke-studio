@@ -1000,9 +1000,18 @@ def align_song_lyrics(
         )
         result = {"status": "superseded", "song_id": song_id}
     except Exception as exc:
-        if not is_cuda_out_of_memory(exc):
-            raise
-        return _retry_when_gpu_frees_up(self, song_id, exc)
+        if is_cuda_out_of_memory(exc):
+            return _retry_when_gpu_frees_up(self, song_id, exc)
+        # Without this the job would read "aligning" until the next worker
+        # start cleared it, and nothing else would be wrong with the worker.
+        log_lyrics_event(song_id, "lyrics_task_crashed", error=repr(exc))
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.FAILED,
+            message="Lyrics timing failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
     else:
         _record_report_outcomes(song_id, result, run.get("pending_reports", []))
         if "token" not in run or not _lyrics_changed_since(song_id, run["token"]):

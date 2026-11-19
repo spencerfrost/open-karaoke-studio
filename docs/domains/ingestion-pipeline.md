@@ -128,9 +128,9 @@ sequenceDiagram
     W-)R: fingerprint_single_song · prefetch_song_lyrics
     W->>E: run_separation_with_fallback(engine_type)
     E-->>W: status strings → progress mapper → DB writes
-    E-)W: on_vocals_ready(vocals.mp3) ~62%
+    E-)W: on_vocals_ready(vocals.mp3) once backing_vocals.mp3 is written too
     W-)R: align_song_lyrics
-    E-->>W: instrumental.mp3 + backing_vocals.mp3
+    E-->>W: instrumental.mp3
     W-)R: detect_song_loudness · detect_song_singing_map (both read the stems, so they wait for separation)
     W->>DB: song.engine_type, duration, status "processed"
     R-)R: detect_song_vocal_range, from whichever of singing map and alignment finishes second
@@ -400,7 +400,7 @@ flowchart LR
     C -.-> C3["prefetch_song_lyrics"]
     D -.->|after separation| D3["detect_song_loudness"]
     D -.->|after separation| D4["detect_song_singing_map"]
-    D -.->|on_vocals_ready ~62%| D2["align_song_lyrics"]
+    D -.->|on_vocals_ready| D2["align_song_lyrics"]
     D4 -.->|second of the two to finish| D1["detect_song_vocal_range"]
     D2 -.->|second of the two to finish| D1
 
@@ -416,14 +416,20 @@ flowchart LR
 Solid = the critical path inside the task. Dashed = `send_task` fire-and-forget; the pipeline
 never waits for any of them and never learns whether they succeeded.
 
-The `on_vocals_ready` hook is the interesting one. Three-track separation writes `vocals.mp3`
-about two thirds of the way through its own run, well before it finishes de-noising the backing
-vocals and converting the instrumental. The engine calls back at that moment so lyrics alignment
-— the slowest downstream task — starts ~40% of a separation earlier than it otherwise would. Only
-the `three_track*` engines pass this callback through
+The `on_vocals_ready` hook is the interesting one. Lyrics alignment listens to the lead and
+backing vocals mixed together (`load_sung_vocals` in
+[services/audio.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/audio.py)), so it can start as soon as
+`vocals.mp3` and `backing_vocals.mp3` are both written. Three-track separation calls back at
+that moment, while the instrumental may still be encoding. Only the `three_track*` engines get
+the callback
 ([jobs/separation.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/separation.py) only forwards `on_vocals_ready` when
-`engine_type.startswith("three_track")`); on `demucs` or `roformer`, lyrics alignment is
-never dispatched by this task at all, and so neither is the vocal range, which waits for it.
+`engine_type.startswith("three_track")`); with any other engine the task dispatches alignment
+itself once separation returns.
+
+Each three-track stem is encoded to a hidden `.<name>.part` file and renamed into place
+([three_track.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/three_track.py)), so a task reading the song folder
+mid-separation finds a stem missing or finished, never half-written. A half-written
+`backing_vocals.mp3` exists but can't be decoded, and alignment would crash on it.
 
 ### Progress accounting (why the numbers look arbitrary)
 

@@ -379,6 +379,14 @@ and retries after 1, 5, then 15 minutes, on the queue it came from. Nothing is s
 doesn't fall back to transcribing. After the last wait the job fails with "the GPU stayed full"
 and the song keeps the lyrics it had.
 
+### Any other crash
+
+An error the steps don't catch (an unreadable stem, say, which the offset sweep loads outside
+any `try`) fails the job row with "Lyrics timing failed" and the exception's type and message
+as its error, then lets the exception reach Celery. The row never sits at "aligning" for a task
+that has stopped. The song keeps the lyrics it had and its `word_timing_version` stays behind,
+so it's aligned again the next time it's queued to sing.
+
 ### Language
 
 [lyrics_language.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_language.py). Language picks both the
