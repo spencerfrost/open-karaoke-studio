@@ -355,6 +355,47 @@ flowchart LR
 - **Volumes** reach the gain nodes live: `usePlaybackStateStore` subscribes to
   `useAudioControlsStore` and writes `gain.value` on every change.
 
+### Audio outputs
+
+Where the stage's sound goes is a per-device setting (Settings → Audio Outputs,
+[AudioOutputsCard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/AudioOutputsCard.tsx)),
+saved in `useSettingsStore` like the theme. Choosing an output uses `AudioContext.setSinkId`, which
+only Chromium browsers have, and only in a secure context (localhost or https). Elsewhere the card
+says so and everything plays on the system default.
+
+- **Speakers** is where the room context above plays. A speakers output that isn't connected falls
+  back to the system default rather than going silent.
+- **Singer's headphones** plays the lead vocal on its own, so the singer can hear the tune while
+  the room hears the backing track. It is a second `AudioContext`, run by
+  [vocalMonitor.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/shared/vocalMonitor.ts).
+
+```mermaid
+flowchart LR
+    VB["Vocals buffer<br/><i>same decoded buffer</i>"] --> Room["Room graph above<br/><i>vocal vol, usually 0</i>"]
+    Room --> Spk["Speakers output"]
+    VB --> HS["Buffer source<br/>in its own context"]
+    HS --> HG["gain<br/><i>headphones vol × normalization</i>"]
+    HG --> HF["Fade gain"]
+    HF --> HL["Limiter"]
+    HL --> Hp["Headphones output"]
+```
+
+- **Lined up at every start.** The two contexts have separate clocks, so each play, seek, delay
+  change and speakers change works out when the room's start sample leaves its output (using its
+  `baseLatency + outputLatency`) and schedules the headphones to put the same sample out then.
+  If that moment has already passed (a slow output, a late open), it starts a little further into
+  the song instead. A **Headphones delay** setting (0–300 ms) adds the lag the browser can't see,
+  such as a TV's sound processing.
+- **Never on the room output.** A new context starts on the default output, so the headphones
+  context plays nothing until `setSinkId` has resolved. A device that fails is closed, not used.
+- **Opened by the device that plays songs.** Nothing opens until the first song loads, and it then
+  stays open across songs so phones don't see the control flicker at every song change.
+- **The singer sets the level.** `headphonesVolume` lives in `useAudioControlsStore` with the
+  rest of the mix and is the `headphones_volume` session control. The stage sends it as a number
+  once its headphones output is confirmed and as `null` when there is none, so the phone's Mix card
+  shows a Headphones fader only when there's something for it to control. Unlike the other faders
+  it is kept across songs: it suits the ears in the headphones, not the song.
+
 **Time keeping.** There's no media element to ask for the position. The store remembers
 `playbackOffset` (where in the song playback started) and `playbackStartTime` (the AudioContext
 clock at that moment, the scheduled start), and computes `currentTime = offset + elapsed`, with
@@ -811,6 +852,7 @@ stage starts songs by itself, so the panel keeps these small.
 | Test | Covers |
 |---|---|
 | [useKaraokePlayerStore.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.test.ts) | Defaults, clamping, WebSocket sends, `setSongId`, mini player, `songEnded`, and the song-change fade: own gain node, limiter placement, overtaking, pause mid-fade |
+| [vocalMonitor.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/shared/vocalMonitor.test.ts) | Singer's headphones: silent until the output is confirmed, lined up against the room's latency and the delay, joins mid-song, restarts on delay change |
 | [usePlaybackStateStore.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/usePlaybackStateStore.test.ts) | Stems start at one instant and offset, seek restarts them, position survives pause/play, a pause isn't an end, the instrumental running out ends the song |
 | [wheelModel.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/wheel/wheelModel.test.ts) | Letter grouping, letter stepping, hold rates, scroll routing, the info card's derived facts |
 | [turnItem.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/turnItem.test.ts) | `findTurnItem` |

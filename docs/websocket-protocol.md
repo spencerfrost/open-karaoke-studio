@@ -185,7 +185,7 @@ interface JobData {
 
 | Type | Description | Sender | Payload |
 |------|-------------|--------|---------|
-| `update_performance_control` | Change a mix/display control (`vocal_volume`, `backing_vocal_volume`, `instrumental_volume`, `lyrics_size`, `lyrics_offset`); any other `control` gets `permission_denied` | All | `{ control: string, value: ControlValue }` |
+| `update_performance_control` | Change a mix/display control (`vocal_volume`, `backing_vocal_volume`, `instrumental_volume`, `headphones_volume`, `lyrics_size`, `lyrics_offset`); any other `control` gets `permission_denied` | All | `{ control: string, value: ControlValue }` |
 
 ##### Playback Controls (Host Only)
 
@@ -211,6 +211,7 @@ interface PerformanceState {
   vocal_volume: number;           // 0-1
   instrumental_volume: number;    // 0-1
   backing_vocal_volume: number;   // 0-1
+  headphones_volume: number | null; // 0-1; null until the stage reports a headphones output
   lyrics_size: "small" | "medium" | "large";
   lyrics_offset: number;          // seconds
   current_time: number;           // seconds
@@ -220,7 +221,7 @@ interface PerformanceState {
   is_ready?: boolean;
 }
 
-type ControlValue = number | string | boolean;
+type ControlValue = number | string | boolean | null;
 
 interface QueueItem {
   id: string;

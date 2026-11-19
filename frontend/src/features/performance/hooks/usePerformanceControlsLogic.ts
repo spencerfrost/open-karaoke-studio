@@ -16,20 +16,26 @@ export const usePerformanceControlsLogic = () => {
     vocalVolume,
     backingVocalVolume,
     instrumentalVolume,
+    headphonesVolume,
+    headphonesAvailable,
     lyricsSize,
     setVocalVolume,
     setBackingVocalVolume,
     setInstrumentalVolume,
+    setHeadphonesVolume,
     setLyricsSize,
   } = useKaraokePlayerStore(
     useShallow((s) => ({
       vocalVolume: s.vocalVolume,
       backingVocalVolume: s.backingVocalVolume,
       instrumentalVolume: s.instrumentalVolume,
+      headphonesVolume: s.headphonesVolume,
+      headphonesAvailable: s.headphonesAvailable,
       lyricsSize: s.lyricsSize,
       setVocalVolume: s.setVocalVolume,
       setBackingVocalVolume: s.setBackingVocalVolume,
       setInstrumentalVolume: s.setInstrumentalVolume,
+      setHeadphonesVolume: s.setHeadphonesVolume,
       setLyricsSize: s.setLyricsSize,
     })),
   );
@@ -49,6 +55,10 @@ export const usePerformanceControlsLogic = () => {
     setInstrumentalVolume(newVolume);
   };
 
+  const toggleHeadphonesVolume = () => {
+    setHeadphonesVolume(toggleVolume(headphonesVolume, 1));
+  };
+
   const handleLyricsSizeChange = (value: number) => {
     const newSize = parseLyricsSize(value);
     setLyricsSize(newSize);
@@ -63,12 +73,15 @@ export const usePerformanceControlsLogic = () => {
     vocalVolume,
     backingVocalVolume,
     instrumentalVolume,
+    headphonesVolume,
+    headphonesAvailable,
     lyricsSize,
 
     // Actions
     toggleVocalsVolume,
     toggleBackingVocalsVolume,
     toggleInstrumentalVolume,
+    toggleHeadphonesVolume,
     handleLyricsSizeChange,
     getLyricsSizeNumericValue,
 
@@ -76,6 +89,7 @@ export const usePerformanceControlsLogic = () => {
     setVocalVolume,
     setBackingVocalVolume,
     setInstrumentalVolume,
+    setHeadphonesVolume,
     setLyricsSize,
   };
 };

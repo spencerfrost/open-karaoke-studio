@@ -6,11 +6,18 @@ export interface AudioControlsState {
   vocalVolume: number;
   backingVocalVolume: number;
   instrumentalVolume: number;
+  /**
+   * The lead vocal in the singer's headphones, separate from the room mix.
+   * Kept across songs and resets: it suits the ears in the headphones, not
+   * the song.
+   */
+  headphonesVolume: number;
 
   // Actions
   setVocalVolume: (volume: number) => void;
   setBackingVocalVolume: (volume: number) => void;
   setInstrumentalVolume: (volume: number) => void;
+  setHeadphonesVolume: (volume: number) => void;
   resetAudioControls: () => void;
 
   // Internal methods for Web Audio API integration
@@ -22,6 +29,7 @@ export const useAudioControlsStore = create<AudioControlsState>((set) => ({
   vocalVolume: 0,
   backingVocalVolume: 1.0,
   instrumentalVolume: 1.0,
+  headphonesVolume: 1.0,
 
   setVocalVolume: (volume: number) => {
     const normalized = normalizeVolume(volume);
@@ -36,6 +44,10 @@ export const useAudioControlsStore = create<AudioControlsState>((set) => ({
   setInstrumentalVolume: (volume: number) => {
     const normalized = normalizeVolume(volume);
     set({ instrumentalVolume: normalized });
+  },
+
+  setHeadphonesVolume: (volume: number) => {
+    set({ headphonesVolume: normalizeVolume(volume) });
   },
 
   resetAudioControls: () => {

@@ -43,7 +43,7 @@ interface PerformanceState {
   is_ready?: boolean;
 }
 
-type ControlValue = number | string | boolean;
+type ControlValue = number | string | boolean | null;
 
 interface SessionWebSocketEvents {
   // Session connection events

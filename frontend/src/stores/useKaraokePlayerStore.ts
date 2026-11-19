@@ -74,6 +74,12 @@ interface KaraokePlayerState {
   vocalVolume: number;
   backingVocalVolume: number;
   instrumentalVolume: number;
+  headphonesVolume: number;
+  /**
+   * The stage has a working headphones output for the singer. Learned from
+   * the session, so it is right on phones as well as on the stage.
+   */
+  headphonesAvailable: boolean;
 
   // UI preferences (from uiPreferences)
   lyricsSize: "small" | "medium" | "large";
@@ -109,6 +115,7 @@ interface KaraokePlayerState {
   setVocalVolume: (volume: number) => void;
   setBackingVocalVolume: (volume: number) => void;
   setInstrumentalVolume: (volume: number) => void;
+  setHeadphonesVolume: (volume: number) => void;
   setLyricsSize: (size: "small" | "medium" | "large") => void;
   setLyricsOffset: (offset: number) => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
@@ -184,9 +191,20 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     updatePerformanceControl("vocalVolume", vocalVolume);
     updatePerformanceControl("backingVocalVolume", backingVocalVolume);
     updatePerformanceControl("instrumentalVolume", instrumentalVolume);
+    pushHeadphonesToSession();
     updatePerformanceControl(
       "lyricsOffset",
       useUIPreferencesStore.getState().lyricsOffset,
+    );
+  }
+
+  /** The headphones level, or null when this stage has no headphones. */
+  function pushHeadphonesToSession() {
+    const available = usePlaybackStateStore.getState().headphonesReady;
+    set({ headphonesAvailable: available });
+    updatePerformanceControl(
+      "headphonesVolume",
+      available ? useAudioControlsStore.getState().headphonesVolume : null,
     );
   }
 
@@ -207,10 +225,16 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       vocalVolume: state.vocalVolume,
       backingVocalVolume: state.backingVocalVolume,
       instrumentalVolume: state.instrumentalVolume,
+      headphonesVolume: state.headphonesVolume,
     });
   });
 
-  usePlaybackStateStore.subscribe((state) => {
+  usePlaybackStateStore.subscribe((state, previous) => {
+    // Only the device playing songs opens a headphones output, so only the
+    // stage ever gets here.
+    if (state.headphonesReady !== previous.headphonesReady) {
+      pushHeadphonesToSession();
+    }
     set({
       songId: state.songId,
       instrumentalUrl: state.instrumentalUrl,
@@ -258,6 +282,8 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
     vocalVolume: 0,
     backingVocalVolume: 1.0,
     instrumentalVolume: 1.0,
+    headphonesVolume: 1.0,
+    headphonesAvailable: false,
     lyricsSize: "medium",
     lyricsOffset: 0,
     autoScrollEnabled: true,
@@ -540,6 +566,11 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
       updatePerformanceControl("instrumentalVolume", volume);
     },
 
+    setHeadphonesVolume: (volume: number) => {
+      useAudioControlsStore.getState().setHeadphonesVolume(volume);
+      updatePerformanceControl("headphonesVolume", volume);
+    },
+
     setLyricsSize: (size: "small" | "medium" | "large") => {
       useUIPreferencesStore.getState().setLyricsSize(size);
       useSettingsStore.getState().setDisplaySettings({ lyricsSize: size });
@@ -620,6 +651,19 @@ export const useKaraokePlayerStore = create<KaraokePlayerState>((set, get) => {
         )
       ) {
         audioControls.setInstrumentalVolume(data.instrumental_volume);
+      }
+      if (data.headphones_volume !== undefined) {
+        set({ headphonesAvailable: data.headphones_volume !== null });
+        if (
+          data.headphones_volume !== null &&
+          !shouldIgnore(
+            lastLocalUpdate,
+            "headphones_volume",
+            data.headphones_volume,
+          )
+        ) {
+          audioControls.setHeadphonesVolume(data.headphones_volume);
+        }
       }
 
       // Handle UI preferences

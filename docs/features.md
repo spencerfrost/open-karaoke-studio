@@ -336,7 +336,8 @@ The same component renders on the TV's left rail and on the phone's controls pag
 always match.
 
 **Features:**
-- **Mix:** Vocals and Backing faders, each with mute
+- **Mix:** Vocals and Backing faders, each with mute, plus Headphones when the stage has a
+  headphones output for the singer
 - **Lyrics:**
   - Search & replace, paste
   - Timing offset: drag the readout, −/+ buttons (100 ms), reset, "Save timing to song"
@@ -356,6 +357,27 @@ always match.
 **Known Limitations:**
 - On the TV the Backing fader is enabled even for two-track songs, where it does nothing
 - Every new song resets the mix and lyrics offset on the TV, but other devices aren't told
+
+---
+
+### Singer's Headphones
+**As a singer, I want to hear the lead vocal in headphones** so I can follow the tune while the
+room hears only the backing track.
+
+**Features:**
+- Settings → Audio Outputs picks the speakers output and the headphones output on the computer
+  playing the songs, with a delay to line the headphones up with a TV's speakers
+- The singer sets the headphones volume from the Mix card on their phone
+
+**Status:** ✅ Working (Chrome, Brave or Edge, at localhost or over https)
+
+**Key Files:**
+- [AudioOutputsCard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/AudioOutputsCard.tsx) - The settings
+- [vocalMonitor.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/shared/vocalMonitor.ts) - The headphones playback
+
+**Known Limitations:**
+- Not on the Shield TV: Android sends all of an app's sound to one output
+- The browser lists outputs only after it's allowed the microphone (nothing is recorded)
 
 ---
 
