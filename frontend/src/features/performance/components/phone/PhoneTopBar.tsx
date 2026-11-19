@@ -11,6 +11,7 @@ import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SingerDot } from "@/components/session/SingerDot";
 import { useQueue } from "@/hooks/api/useKaraokeQueue";
 import { sessionWebSocketService } from "@/services/sessionWebSocketService";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -44,6 +45,11 @@ const PhoneTopBar: React.FC = () => {
               {current.song.title}
             </span>
             {" · "}
+            <SingerDot
+              performerId={current.performerId}
+              name={current.singer}
+              className="mr-1 align-middle"
+            />
             {current.singer}
           </>
         ) : (

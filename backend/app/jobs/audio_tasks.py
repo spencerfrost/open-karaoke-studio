@@ -25,6 +25,7 @@ from ._shared import (
 from .celery_app import celery
 from .exceptions import AudioProcessingError, is_transient_processing_error
 from .separation import run_separation_with_fallback
+from .song_steps import send_song_step
 
 logger = get_task_logger(__name__)
 
@@ -64,9 +65,11 @@ def _schedule_transient_retry(task, job, job_repository, exc):
 def _dispatch_vocals_ready_tasks(
     song_id: str, vocals_path: Path, title: str | None, artist: str | None
 ) -> None:
-    """Queue the step that needs vocals.mp3 alone: lyric alignment.
+    """Queue the step that needs only the vocal stems: lyric alignment.
 
-    The vocal range also reads the singing map and the lyrics' line times, so
+    Alignment listens to vocals.mp3 mixed with backing_vocals.mp3, so a
+    three-track engine calls this once both are written, before the
+    instrumental is done. The vocal range also reads the singing map and the lyrics' line times, so
     it's queued when the later of those two finishes (queue_vocal_range_if_ready).
     """
     logger.debug(
@@ -79,12 +82,26 @@ def _dispatch_vocals_ready_tasks(
         "vocals_ready",
         vocals_path=vocals_path,
         vocals_size_bytes=vocals_path.stat().st_size if vocals_path.exists() else None,
-        pipeline_progress=70,
     )
     _create_lyrics_alignment_job(song_id, title=title, artist=artist)
     celery.send_task("align_song_lyrics", args=[song_id])
     log_lyrics_event(
         song_id, "lyrics_task_dispatched", lyrics_job_id=_get_lyrics_job_id(song_id)
+    )
+
+
+def _dispatch_stems_ready_tasks(song_id: str) -> None:
+    """Queue the steps measured on the finished stems: loudness and the singing map.
+
+    Called before the song is marked processed: from then on it can be queued
+    to sing, and the queue-time update (app.jobs.song_updates) leaves alone a
+    step that's already on its way.
+    """
+    send_song_step("loudness", song_id, force=True)
+    send_song_step("singing_map", song_id, force=True)
+    logger.debug(
+        "[PIPELINE] separation done — dispatched loudness + singing map for song %s",
+        song_id,
     )
 
 
@@ -169,8 +186,8 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         # original.mp3 is already on disk, so everything the YouTube flow
         # queues after its download can go now. Artwork only falls back to a
         # YouTube thumbnail when the song has a video_id.
-        celery.send_task("fetch_song_artwork", args=[song_id])
-        celery.send_task("fingerprint_single_song", args=[song_id])
+        send_song_step("song_albums", song_id, force=True)
+        send_song_step("fingerprint", song_id, force=True)
         celery.send_task("prefetch_song_lyrics", args=[song_id])
         logger.debug(
             "[PIPELINE] dispatched fetch_song_artwork + fingerprint_single_song + prefetch_song_lyrics for song %s",
@@ -196,9 +213,10 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        # Only three_track engines report vocals early; the rest finish first.
+        # Only three_track engines report the vocal stems early; the rest finish first.
         if not vocals_dispatched:
             on_vocals_ready(song_dir / "vocals.mp3")
+        _dispatch_stems_ready_tasks(song_id)
 
         from app.db.database import get_db_session
         from app.repositories.song_repository import SongRepository
@@ -223,15 +241,6 @@ def process_audio_job(self, job_id, engine_type="three_track"):
         # in-flight jobs list already leaves completed jobs out.
 
         _broadcast_job_event(job)
-
-        # Loudness is measured on the stems, so it waits for separation.
-        celery.send_task("detect_song_loudness", args=[song_id])
-        logger.debug(
-            "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
-            song_id,
-        )
-        # So is the singing map: when the lead and backing vocals are singing.
-        celery.send_task("detect_song_singing_map", args=[song_id])
 
         return {"status": "success", "job_id": job_id, "filename": filename}
 
@@ -322,7 +331,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
     job.engine_type = engine_type
     job_repository.update(job)
 
-    celery.send_task("fetch_song_artwork", args=[song_id])
+    send_song_step("song_albums", song_id, force=True)
     logger.debug("[PIPELINE] ~5%% — dispatched fetch_song_artwork for song %s", song_id)
 
     def update_progress(progress, message, status=None, step=None):
@@ -420,7 +429,7 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 JobStep.SEPARATE,
             )
 
-            celery.send_task("fingerprint_single_song", args=[song_id])
+            send_song_step("fingerprint", song_id, force=True)
             celery.send_task("prefetch_song_lyrics", args=[song_id])
             logger.debug(
                 "[PIPELINE] ~12%% — dispatched fingerprint_single_song for song %s",
@@ -472,9 +481,10 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
         if not success:
             raise AudioProcessingError("Audio separation failed")
 
-        # Only three_track engines report vocals early; the rest finish first.
+        # Only three_track engines report the vocal stems early; the rest finish first.
         if not vocals_dispatched:
             on_vocals_ready(song_dir / "vocals.mp3")
+        _dispatch_stems_ready_tasks(song_id)
 
         try:
             with get_db_session() as session:
@@ -494,13 +504,6 @@ def process_youtube_job(self, job_id, video_id, metadata, engine_type="three_tra
                 repo.update(song_id, **update_fields)
         except Exception as e:
             logger.error("Error updating song metadata for song %s: %s", song_id, e)
-
-        # Loudness is measured on the stems, so it waits for separation.
-        celery.send_task("detect_song_loudness", args=[song_id])
-        logger.debug(
-            "[PIPELINE] separation done — dispatched detect_song_loudness for song %s",
-            song_id,
-        )
 
         job.status = JobStatus.COMPLETED
         job.progress = 100

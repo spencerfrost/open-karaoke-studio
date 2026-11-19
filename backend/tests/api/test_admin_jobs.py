@@ -1,5 +1,7 @@
 """Tests for the admin background jobs API and batch run progress tracking."""
 
+import itertools
+import json
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -21,8 +23,13 @@ NO_ALIGNMENT = ([], 0)
 
 @pytest.fixture
 def mock_celery():
-    with patch("app.api.admin.celery") as celery:
-        celery.send_task.return_value = Mock(id="task-1")
+    # A run's task is queued by queue_run_task, under an id made up first.
+    task_ids = (f"task-{n}" for n in itertools.count(1))
+    with (
+        patch("app.api.admin.celery") as celery,
+        patch("app.jobs.celery_app.celery.send_task", celery.send_task),
+        patch("app.jobs._batch_runs.uuid", side_effect=lambda: next(task_ids)),
+    ):
         yield celery
 
 
@@ -180,7 +187,49 @@ class TestListJobs:
             "lyrics_alignment",
             "artist_credits",
             "lrc_offset",
+            "long_lyric_lines",
         }
+
+    def test_long_lyric_lines_counts_songs_with_a_line_too_long(self, client, db):
+        sixteen = " ".join(f"w{i}" for i in range(16))
+        twenty_five = " ".join(f"w{i}" for i in range(25))
+
+        def song(song_id, line, source):
+            words = [
+                {"word": w, "start": 0.0, "end": 0.1, "line_index": 0}
+                for w in line.split()
+            ]
+            payload = json.dumps({"words": words, "lyrics_source": source})
+            return DbSong(
+                id=song_id,
+                title=song_id,
+                artist="A",
+                synced_lyrics=f"[00:01.00]{line}",
+                word_synced_lyrics=payload,
+            )
+
+        db.add_all(
+            [
+                # 16 words: too long for a transcript, fine in a written LRC.
+                song("transcript", sixteen, "asr:whisperx"),
+                song("written", sixteen, "lrclib:1"),
+                song("written_long", twenty_five, "lrclib:1"),
+                DbSong(
+                    id="untimed", title="u", artist="A", synced_lyrics="[00:01.00]x"
+                ),
+            ]
+        )
+        db.commit()
+
+        job = _jobs_by_kind(client)["long_lyric_lines"]
+
+        assert job["modes"] == ["missing"]
+        assert job["coverage"] == {"have": 1, "of": 3}
+        assert job["modeCounts"] == {"missing": 2}
+        assert sorted(select_ids(db, "long_lyric_lines", "missing")) == [
+            "transcript",
+            "written_long",
+        ]
 
     def test_artist_credits_counts_songs_with_old_credits(self, client, db):
         db.add_all(
@@ -225,7 +274,9 @@ class TestRunJob:
         assert run["status"] == "queued"
         assert run["mode"] == "all"
         mock_celery.send_task.assert_called_once_with(
-            "batch_backfill_loudness", kwargs={"mode": "all", "run_id": run["id"]}
+            "batch_backfill_loudness",
+            kwargs={"mode": "all", "run_id": run["id"]},
+            task_id="task-1",
         )
         assert db.get(BatchRun, run["id"]).celery_task_id == "task-1"
 
@@ -466,7 +517,9 @@ class TestPauseRun:
         assert resp.status_code == 200
         assert resp.json()["run"]["status"] == "queued"
         mock_celery.send_task.assert_called_once_with(
-            "batch_backfill_loudness", kwargs={"mode": "missing", "run_id": run_id}
+            "batch_backfill_loudness",
+            kwargs={"mode": "missing", "run_id": run_id},
+            task_id="task-1",
         )
         db.expire_all()
         assert db.get(BatchRun, run_id).celery_task_id == "task-1"
@@ -492,44 +545,88 @@ class TestPauseRun:
 
         assert resp.json()["run"]["status"] == "cancelled"
 
-    def test_a_handed_off_run_takes_its_queued_songs_off_and_queues_them_on_resume(
-        self, client, db, mock_celery
-    ):
-        db.add_all([DbSong(id="s1", title="One"), DbSong(id="s2", title="Two")])
-        db.commit()
-        run_id = self._run(
+    def _handed_off_run(self, db):
+        return self._run(
             db,
             "running",
             kind="lyrics_alignment",
             mode="retime",
             total=3,
-            report={"waitingOnJobs": ["j0", "j1", "j2"]},
+            report={
+                "waitingOnJobs": ["j0", "j1", "j2"],
+                "waitingOnTasks": ["t0", "t1", "t2"],
+            },
         )
+
+    def test_a_handed_off_run_takes_its_queued_songs_off_and_queues_them_on_resume(
+        self, client, db, mock_celery
+    ):
+        run_id = self._handed_off_run(db)
 
         with patch(
-            "app.jobs.lyrics_dispatch.take_queued_alignments_off",
+            "app.jobs.lyrics_dispatch.pause_waiting_alignments",
             return_value=["s1", "s2"],
-        ) as take_off:
+        ) as pause:
             resp = client.post(f"/api/admin/jobs/runs/{run_id}/pause")
 
-        take_off.assert_called_once_with(["j0", "j1", "j2"])
-        assert resp.json()["run"]["status"] == "paused"
-        # The worker that aligned gives its GPU memory back after its song.
-        mock_celery.send_task.assert_called_once_with(
-            "release_gpu_memory", kwargs={"reason": f"batch run {run_id} paused"}
+        # Only the jobs still on the tasks the run queued are taken off.
+        pause.assert_called_once_with(
+            ["j0", "j1", "j2"], ["t0", "t1", "t2"], f"batch run {run_id} paused"
         )
+        assert resp.json()["run"]["status"] == "paused"
 
-        with patch("app.jobs.lyrics_dispatch.enqueue_song_alignment") as enqueue:
+        with patch(
+            "app.jobs.lyrics_dispatch.requeue_paused_alignments",
+            return_value=["t3", "t4"],
+        ) as requeue:
             resp = client.post(f"/api/admin/jobs/runs/{run_id}/resume")
 
+        requeue.assert_called_once_with(["s1", "s2"], include_remote=False)
         assert resp.json()["run"]["status"] == "running"
-        assert sorted(call.args[0].id for call in enqueue.call_args_list) == [
-            "s1",
-            "s2",
-        ]
-        assert all(
-            call.kwargs == {"include_remote": False, "background": True}
-            for call in enqueue.call_args_list
-        )
         db.expire_all()
-        assert db.get(BatchRun, run_id).report == {"waitingOnJobs": ["j0", "j1", "j2"]}
+        assert db.get(BatchRun, run_id).report == {
+            "waitingOnJobs": ["j0", "j1", "j2"],
+            "waitingOnTasks": ["t3", "t4"],
+        }
+
+    def test_a_handed_off_run_stays_paused_when_its_songs_cannot_be_queued(
+        self, client, db, mock_celery
+    ):
+        run_id = self._handed_off_run(db)
+        with patch(
+            "app.jobs.lyrics_dispatch.pause_waiting_alignments",
+            return_value=["s1", "s2"],
+        ):
+            client.post(f"/api/admin/jobs/runs/{run_id}/pause")
+
+        with patch(
+            "app.jobs.lyrics_dispatch.requeue_paused_alignments",
+            side_effect=ConnectionError("redis down"),
+        ):
+            resp = client.post(f"/api/admin/jobs/runs/{run_id}/resume")
+
+        assert resp.status_code == 503
+        db.expire_all()
+        run = db.get(BatchRun, run_id)
+        # Still paused, with every song it has to queue again.
+        assert run.status == "paused"
+        assert run.report["pausedSongIds"] == ["s1", "s2"]
+
+    def test_stopping_a_handed_off_run_only_takes_off_its_own_tasks(
+        self, client, db, mock_celery
+    ):
+        run_id = self._handed_off_run(db)
+
+        with patch("app.jobs.lyrics_dispatch.cancel_queued_alignments") as cancel:
+            client.post(f"/api/admin/jobs/runs/{run_id}/cancel")
+
+        cancel.assert_called_once_with(["j0", "j1", "j2"], ["t0", "t1", "t2"])
+
+    def test_a_job_that_runs_in_one_go_cannot_be_paused(self, client, db, mock_celery):
+        run_id = self._run(db, "running", kind="artist_credits", mode="apply")
+
+        resp = client.post(f"/api/admin/jobs/runs/{run_id}/pause")
+
+        assert resp.status_code == 409
+        db.expire_all()
+        assert db.get(BatchRun, run_id).status == "running"

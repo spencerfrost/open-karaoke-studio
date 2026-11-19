@@ -112,8 +112,8 @@ export const SearchField: React.FC<SearchFieldProps> = ({
         aria-label="Song or artist"
         wrapperClassName={cn(
           "bg-surface text-surface-foreground h-14 rounded-xl border-2 px-4 transition-colors",
-          "[&>svg]:text-primary [&>svg]:size-5 [&>svg]:opacity-100",
-          showSuggestions ? "border-primary" : "border-border/60",
+          "[&>svg]:text-foreground-dim [&>svg]:size-5 [&>svg]:opacity-100",
+          showSuggestions ? "border-selected" : "border-border/60",
         )}
         className="h-full text-lg font-bold placeholder:text-foreground-faint placeholder:font-normal"
       />

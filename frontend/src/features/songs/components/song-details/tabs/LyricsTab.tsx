@@ -9,6 +9,9 @@ import { createLogger } from "@/lib/logger";
 import LyricsFetchDialog from "@/features/lyrics/components/LyricsFetchDialog";
 import PasteLyricsDialog from "@/features/lyrics/components/PasteLyricsDialog";
 import type { LyricsResult } from "@/features/lyrics/components/LyricsFetchDialog";
+import { LineFixesList } from "@/features/lyrics/components/LineFixesList";
+import { useLyricsLineFixes } from "@/hooks/api/useLyricsLineFixes";
+import { useAccess } from "@/hooks/useAccess";
 
 const logger = createLogger("component:LyricsTab");
 
@@ -19,6 +22,10 @@ interface LyricsTabProps {
 export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
   const { useUpdateSong } = useSongs();
   const updateSongMutation = useUpdateSong();
+  // Fixed lines are read and undone by hosts, who make them on the stage.
+  const { isHost } = useAccess();
+  const fixCount = useLyricsLineFixes(song.id, { enabled: isHost }).data
+    ?.length;
 
   const [isEditingPlain, setIsEditingPlain] = useState(false);
   const [plainEditValue, setPlainEditValue] = useState(song.plainLyrics ?? "");
@@ -165,7 +172,9 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
   return (
     <>
       <Tabs defaultValue="plain">
-        <TabsList className="grid grid-cols-3 w-full">
+        <TabsList
+          className={`grid w-full ${isHost ? "grid-cols-4" : "grid-cols-3"}`}
+        >
           <TabsTrigger value="plain">
             Plain{song.plainLyrics ? " ●" : ""}
           </TabsTrigger>
@@ -175,6 +184,11 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
           <TabsTrigger value="word-synced">
             Word-Synced{song.wordSyncedLyrics ? " ●" : ""}
           </TabsTrigger>
+          {isHost && (
+            <TabsTrigger value="fixes">
+              Fixed lines{fixCount ? ` (${fixCount})` : ""}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="plain" className="space-y-2 mt-3">
@@ -348,6 +362,18 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({ song }) => {
             </div>
           )}
         </TabsContent>
+        {isHost && (
+          <TabsContent value="fixes" className="space-y-2 mt-3">
+            <p className="text-sm text-muted-foreground">
+              Lines fixed on the stage. Each stays fixed when the lyrics are
+              fetched or timed again.
+            </p>
+            <LineFixesList
+              songId={song.id}
+              emptyText="No lines fixed yet. Point at a line on the stage to fix it."
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       <LyricsFetchDialog

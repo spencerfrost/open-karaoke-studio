@@ -10,13 +10,13 @@ const WebSocketStatus = ({ connected, className }: WebSocketStatusProps) => {
     >
       {connected ? (
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-accent animate-pulse"></span>
-          <span className="text-sm text-accent">Live</span>
+          <span className="h-2 w-2 rounded-full bg-success animate-pulse"></span>
+          <span className="text-sm text-success">Live</span>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-secondary animate-pulse"></span>
-          <span className="text-sm text-secondary">Connecting...</span>
+          <span className="h-2 w-2 rounded-full bg-warning animate-pulse"></span>
+          <span className="text-sm text-warning">Connecting...</span>
         </div>
       )}
     </div>

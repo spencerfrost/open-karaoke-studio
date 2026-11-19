@@ -21,8 +21,10 @@ const ArtistResultsSection: React.FC<ArtistResultsSectionProps> = ({
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <Users size={24} className="text-primary" />
-        <h2 className="text-xl font-semibold text-primary">{sectionTitle}</h2>
+        <Users size={24} className="text-section-label" />
+        <h2 className="text-xl font-semibold text-section-label">
+          {sectionTitle}
+        </h2>
       </div>
 
       <ArtistAccordion

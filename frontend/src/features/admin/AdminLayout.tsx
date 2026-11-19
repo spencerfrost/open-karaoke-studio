@@ -11,6 +11,7 @@ import {
   ListChecks,
   MessageSquareHeart,
   MessageSquareWarning,
+  TextCursorInput,
   Music2,
   ShieldAlert,
   ShieldCheck,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { AccountMenu } from "@/features/session";
 import { useLyricsFeedback } from "@/hooks/api/useLyricsFeedback";
 import { useLyricsReports } from "@/hooks/api/useLyricsReports";
+import { useLostLineFixes } from "@/hooks/api/useLyricsLineFixes";
 import { useBatchJobs } from "./hooks/useBatchJobs";
 import {
   countAuditIssues,
@@ -55,6 +57,10 @@ function useNoCount() {
 
 function useLyricsReportCount() {
   return useLyricsReports().data?.length;
+}
+
+function useLostLineFixCount() {
+  return useLostLineFixes().data?.length || undefined;
 }
 
 /** Songs someone said were off, counting only the lyrics they show now. */
@@ -122,6 +128,12 @@ const ADMIN_SECTION_GROUPS: AdminSectionGroup[] = [
         label: "Lyrics feedback",
         icon: MessageSquareHeart,
         useCount: useLyricsFeedbackCount,
+      },
+      {
+        path: "lost-line-fixes",
+        label: "Lost line fixes",
+        icon: TextCursorInput,
+        useCount: useLostLineFixCount,
       },
       {
         path: "acoustid",

@@ -40,6 +40,7 @@ PERFORMANCE_CONTROLS = frozenset(
         "vocal_volume",
         "backing_vocal_volume",
         "instrumental_volume",
+        "headphones_volume",
         "lyrics_size",
         "lyrics_offset",
     }
@@ -136,6 +137,9 @@ def get_session_performance_state(session_id: str):
             "vocal_volume": 0.0,  # Songs start with the lead vocal off
             "backing_vocal_volume": 1.0,
             "instrumental_volume": 1.0,
+            # The lead vocal in the singer's headphones. None until the stage
+            # reports a headphones output, so phones hide the control.
+            "headphones_volume": None,
             "lyrics_size": "medium",
             "lyrics_offset": 0,
             "current_time": 0,

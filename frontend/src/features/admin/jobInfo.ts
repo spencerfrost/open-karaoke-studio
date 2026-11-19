@@ -68,6 +68,12 @@ export const JOB_INFO: Record<JobKind, JobInfo> = {
       "Checks whether each song's whole LRC is early or late, by up to 12 seconds, on the GPU (about half a minute per song). It changes nothing: shifts it finds are listed on Compare word timing to listen to, and Apply shifts them.",
     unit: ["song", "songs"],
   },
+  long_lyric_lines: {
+    name: "Long lyric lines",
+    description:
+      "Cuts lyric lines too long to be one line into lines a singer can read, where the singer pauses. A transcript's lines are cut past 12 words; an LRC from a lyrics site only past 20, since rap verses run long on purpose. Uses the word timing already stored, so it's quick and needs no GPU.",
+    unit: ["song", "songs"],
+  },
   lyrics_alignment: {
     name: "Lyrics alignment",
     description:

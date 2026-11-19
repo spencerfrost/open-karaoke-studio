@@ -11,6 +11,7 @@ from .break_check import BreakCheck
 from .host_settings import HostSettings
 from .job import DbJob, Job, JobStatus, JobStep
 from .lyrics_feedback import LyricsFeedback
+from .lyrics_line_fix import LyricsLineFix
 from .lyrics_report import LyricsReport
 from .performance import PerformanceHistory
 from .performer import SessionPerformer
@@ -37,6 +38,7 @@ __all__ = [
     "KaraokeQueueItem",
     "BreakCheck",
     "LyricsFeedback",
+    "LyricsLineFix",
     "LyricsReport",
     "PerformanceHistory",
     "SessionPerformer",

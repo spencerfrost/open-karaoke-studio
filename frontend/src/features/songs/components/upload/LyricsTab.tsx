@@ -66,7 +66,7 @@ export function LyricsTab({
     <ScrollArea className="flex-1 pr-4">
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
+          <Loader2 className="h-8 w-8 animate-spin mb-4 text-secondary" />
           <p className="text-center font-medium">Loading lyrics options...</p>
           <p className="text-center text-sm text-muted-foreground mt-1">
             Searching for lyrics that match your song
@@ -99,7 +99,7 @@ export function LyricsTab({
                   className="flex flex-col space-y-1 cursor-pointer"
                 >
                   <Card
-                    className={`hover:border-primary w-full ${selectedOption === option ? "border-primary bg-primary/5" : ""}`}
+                    className={`hover:border-ring w-full ${selectedOption === option ? "border-selected bg-selected/5" : ""}`}
                   >
                     <CardContent className="p-3">
                       <div className="flex justify-between items-start mb-2">

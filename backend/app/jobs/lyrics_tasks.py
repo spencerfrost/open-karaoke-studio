@@ -16,6 +16,8 @@ from app.services.gpu_memory import (
     track_gpu_memory,
 )
 from app.services.lyrics_analysis import analyze_lyrics
+from app.services.lyrics_line_fixes import apply_fixes_to_attempts
+from app.services.lyrics_line_split import split_long_lines
 from app.services.lyrics_selection import SongData, select_initial_lyrics
 from app.services.lyrics_timing import log_lyrics_event
 
@@ -144,12 +146,13 @@ class LyricsChangedDuringRun(Exception):
 
 
 def _lyrics_run_token(session, song) -> tuple:
-    """What a run must still see before it writes: no new pick, no new report.
+    """What a run must still see before it writes: no new pick, report or line fix.
 
     A person saving lyrics changes `lyrics_hand_picked_at`; a report adds a
-    row or bumps a count. Either means this run's candidates are out of date.
+    row or bumps a count; a line fix adds, changes or removes a row. Any of
+    them means this run's candidates are out of date.
     """
-    from app.db.models import LyricsReport
+    from app.db.models import LyricsLineFix, LyricsReport
 
     reports = (
         session.query(LyricsReport.id, LyricsReport.report_count)
@@ -157,9 +160,16 @@ def _lyrics_run_token(session, song) -> tuple:
         .order_by(LyricsReport.id)
         .all()
     )
+    fixes = (
+        session.query(LyricsLineFix.id, LyricsLineFix.new_text)
+        .filter(LyricsLineFix.song_id == song.id)
+        .order_by(LyricsLineFix.id)
+        .all()
+    )
     return (
         song.lyrics_hand_picked_at,
         tuple((row.id, row.report_count) for row in reports),
+        tuple((row.id, row.new_text) for row in fixes),
     )
 
 
@@ -215,6 +225,20 @@ def _persist_initial_lyrics_candidate(
             session.commit()
 
     return (persisted_plain_lyrics, persisted_synced_lyrics)
+
+
+def _with_long_lines_split(
+    content: str, payload: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    """The LRC and word payload to store, with lines too long to be one line cut.
+
+    Cut from the words' timing (services/lyrics_line_split), so it runs on
+    lyrics just aligned, before they're stored.
+    """
+    split = split_long_lines(content, payload)
+    if split is None:
+        return content, payload
+    return split["synced_lyrics"], split["word_payload"]
 
 
 def _build_word_sync_payload(
@@ -354,16 +378,17 @@ def store_offset_corrected_lrc(
         song = _fetch_song_for_write(session, song_id, run_token)
         if not song:
             return None
-        song.synced_lyrics = corrected_lrc
-        song.word_synced_lyrics = json.dumps(
+        song.synced_lyrics, payload = _with_long_lines_split(
+            corrected_lrc,
             _build_word_sync_payload(
                 result,
                 source_type="synced",
                 source=source,
                 attempt_index=attempt_index,
                 offset_applied=shift,
-            )
+            ),
         )
+        song.word_synced_lyrics = json.dumps(payload)
         session.commit()
 
     return result
@@ -609,10 +634,10 @@ def _retime_from_asr(
             song = _fetch_song_for_write(session, song_id, run_token)
             if not song:
                 return None
-            song.synced_lyrics = lrc
             if attempt["source_type"] == "plain":
                 song.plain_lyrics = attempt["content"]
-            song.word_synced_lyrics = json.dumps(
+            song.synced_lyrics, payload = _with_long_lines_split(
+                lrc,
                 _build_word_sync_payload(
                     fitted,
                     source_type="synced",
@@ -621,8 +646,9 @@ def _retime_from_asr(
                     retimed_from=attempt["source_type"],
                     retimed_by=asr_source,
                     retime_match_ratio=plan["match_ratio"],
-                )
+                ),
             )
+            song.word_synced_lyrics = json.dumps(payload)
             session.commit()
 
         return {
@@ -759,11 +785,14 @@ def _load_song_lyrics_state(song_id: str) -> dict[str, Any] | None:
     `rejected_keys`: words keys of lyrics reported as having the wrong words.
     `pending_reports`: (id, kind, report_count) of open reports the app hasn't
     acted on yet; this run acts on them and records what it did.
+    `line_fixes`: lines people fixed, oldest first; every candidate gets them.
     """
     from app.db.database import get_db_session
     from app.db.models import LyricsReport
+    from app.repositories.lyrics_line_fix_repository import LyricsLineFixRepository
     from app.repositories.lyrics_report_repository import LyricsReportRepository
     from app.repositories.song_repository import SongRepository
+    from app.services.lyrics_line_fixes import snapshot_fix
 
     with get_db_session() as session:
         song = SongRepository(session).fetch(song_id)
@@ -784,6 +813,10 @@ def _load_song_lyrics_state(song_id: str) -> dict[str, Any] | None:
             "hand_picked_at": song.lyrics_hand_picked_at,
             "rejected_keys": LyricsReportRepository(session).rejected_keys(song_id),
             "run_token": _lyrics_run_token(session, song),
+            "line_fixes": [
+                snapshot_fix(fix, fix.id)
+                for fix in LyricsLineFixRepository(session).for_song(song_id)
+            ],
             "pending_reports": [
                 (row.id, row.kind, row.report_count)
                 for row in session.query(
@@ -838,6 +871,9 @@ def prefetch_song_lyrics(
     )
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
+    attempts = apply_fixes_to_attempts(
+        attempts, state.get("line_fixes", []), state["rejected_keys"]
+    )
 
     initial_lyrics_attempt = select_initial_lyrics(attempts)
     if not initial_lyrics_attempt:
@@ -949,6 +985,19 @@ def align_song_lyrics(
     saves or reports the lyrics while it runs, it stops before its next write
     (or notices once it's done) and queues a fresh run with the new state.
     """
+    from .lyrics_dispatch import alignment_is_still_wanted
+
+    if not alignment_is_still_wanted(song_id, self.request.id):
+        # Taken off the queue (a paused or stopped library run), or replaced
+        # by a newer run for the song, and this worker missed the revoke.
+        logger.info(
+            "align_song_lyrics: skipping %s, task %s is no longer wanted",
+            song_id,
+            self.request.id,
+        )
+        log_lyrics_event(song_id, "lyrics_task_skipped", task_id=self.request.id)
+        return {"status": "skipped", "song_id": song_id}
+
     run: dict[str, Any] = {}
     try:
         with track_gpu_memory("lyrics", song_id):
@@ -968,9 +1017,18 @@ def align_song_lyrics(
         )
         result = {"status": "superseded", "song_id": song_id}
     except Exception as exc:
-        if not is_cuda_out_of_memory(exc):
-            raise
-        return _retry_when_gpu_frees_up(self, song_id, exc)
+        if is_cuda_out_of_memory(exc):
+            return _retry_when_gpu_frees_up(self, song_id, exc)
+        # Without this the job would read "aligning" until the next worker
+        # start cleared it, and nothing else would be wrong with the worker.
+        log_lyrics_event(song_id, "lyrics_task_crashed", error=repr(exc))
+        _complete_lyrics_alignment_job(
+            song_id,
+            status=JobStatus.FAILED,
+            message="Lyrics timing failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+        raise
     else:
         _record_report_outcomes(song_id, result, run.get("pending_reports", []))
         if "token" not in run or not _lyrics_changed_since(song_id, run["token"]):
@@ -999,9 +1057,11 @@ def _save_word_timing_version(song_id: str, result: Mapping[str, Any]) -> None:
     """Record that this version of alignment reached an answer for the song.
 
     Any answer counts, "no lyrics found" included, so a song isn't aligned
-    again each time it's queued to sing (app.jobs.song_updates).
+    again each time it's queued to sing (app.jobs.song_updates). A run with
+    nothing to show because its alignment attempts raised isn't an answer.
     """
-    if result.get("status") in _NOT_LOOKED_AT:
+    status = result.get("status")
+    if status in _NOT_LOOKED_AT or (status == "no_result" and result.get("errors")):
         return
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
@@ -1207,6 +1267,10 @@ def _align_song_lyrics(
     if source in {"plain", "synced"}:
         attempts = [attempt for attempt in attempts if attempt["source_type"] == source]
     attempts = _format_synced_attempts(attempts)
+    # Lines people fixed go on every candidate, so whichever is stored keeps them.
+    attempts = apply_fixes_to_attempts(
+        attempts, state.get("line_fixes", []), rejected_keys
+    )
     attempts_elapsed_ms = round((perf_counter() - attempts_started_at) * 1000, 1)
     # Every attempt is the same song's words, so the first one's text decides.
     language = _resolve_song_language(
@@ -1482,16 +1546,18 @@ def _align_song_lyrics(
 
                 # The words index into this candidate's text, so its text is
                 # stored with them, replacing whatever was there before.
-                should_persist_synced_lyrics = song.synced_lyrics != attempt["content"]
-                song.synced_lyrics = attempt["content"]
-                song.word_synced_lyrics = json.dumps(
+                stored_lyrics, payload = _with_long_lines_split(
+                    attempt["content"],
                     _build_word_sync_payload(
                         fitted,
                         source_type=source_type,
                         source=source_label,
                         attempt_index=idx + 1,
-                    )
+                    ),
                 )
+                should_persist_synced_lyrics = song.synced_lyrics != stored_lyrics
+                song.synced_lyrics = stored_lyrics
+                song.word_synced_lyrics = json.dumps(payload)
 
                 session.commit()
 

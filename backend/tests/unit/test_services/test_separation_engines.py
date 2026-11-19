@@ -129,9 +129,14 @@ def stub_pipeline(monkeypatch):
 
     exported = {}
 
+    def export(source, out, **kw):
+        # Each MP3 holds the name of the WAV it was encoded from.
+        Path(out).write_text(Path(source).name)
+        exported[out] = source
+
     def from_wav(path):
         segment = MagicMock()
-        segment.export.side_effect = lambda out, **kw: exported.__setitem__(out, path)
+        segment.export.side_effect = lambda out, **kw: export(path, out, **kw)
         return segment
 
     monkeypatch.setattr(three_track, "load_separator", fake_load)
@@ -226,9 +231,7 @@ def test_three_track_exports_each_stem_from_its_wav(
     assert three_track.separate_with_three_track(
         tmp_path / "original.mp3", tmp_path, status_callback=lambda m: None
     )
-    sources = {
-        Path(out).name: Path(src).name for out, src in stub_pipeline.exported.items()
-    }
+    sources = {path.name: path.read_text() for path in tmp_path.glob("*.mp3")}
     assert sources == {
         "vocals.mp3": "vocals_(Vocals)_karaoke.wav",
         "backing_vocals.mp3": "backing_(dry)_denoise.wav",
@@ -237,12 +240,34 @@ def test_three_track_exports_each_stem_from_its_wav(
     assert not (tmp_path / ".temp_three_track").exists()
 
 
-def test_three_track_reports_vocals_once_written(monkeypatch, tmp_path, stub_pipeline):
+def test_three_track_never_leaves_a_half_written_stem(
+    monkeypatch, tmp_path, stub_pipeline
+):
+    """Each MP3 is encoded under a hidden name, then renamed into place."""
+    monkeypatch.setattr(three_track, "get_config", _config)
+
+    assert three_track.separate_with_three_track(
+        tmp_path / "original.mp3", tmp_path, status_callback=lambda m: None
+    )
+    encoded_to = {Path(out).name for out in stub_pipeline.exported}
+    assert encoded_to == {
+        ".vocals.mp3.part",
+        ".backing_vocals.mp3.part",
+        ".instrumental.mp3.part",
+    }
+    assert not list(tmp_path.glob(".*.part"))
+
+
+def test_three_track_reports_vocals_once_both_vocal_stems_are_written(
+    monkeypatch, tmp_path, stub_pipeline
+):
+    """Alignment listens to the lead and backing vocals together."""
     monkeypatch.setattr(three_track, "get_config", _config)
     reported = []
 
     def on_vocals_ready(path):
-        reported.append((path, str(path) in stub_pipeline.exported))
+        backing = tmp_path / "backing_vocals.mp3"
+        reported.append((path, path.exists(), backing.exists()))
 
     assert three_track.separate_with_three_track(
         tmp_path / "original.mp3",
@@ -250,7 +275,7 @@ def test_three_track_reports_vocals_once_written(monkeypatch, tmp_path, stub_pip
         status_callback=lambda m: None,
         on_vocals_ready=on_vocals_ready,
     )
-    assert reported == [(tmp_path / "vocals.mp3", True)]
+    assert reported == [(tmp_path / "vocals.mp3", True, True)]
 
 
 def test_three_track_fails_when_an_export_fails(monkeypatch, tmp_path, stub_pipeline):
@@ -268,6 +293,7 @@ def test_three_track_fails_when_an_export_fails(monkeypatch, tmp_path, stub_pipe
         tmp_path / "original.mp3", tmp_path, status_callback=lambda m: None
     )
     assert not (tmp_path / ".temp_three_track").exists()
+    assert not list(tmp_path.glob(".*.part"))
 
 
 def test_three_track_demucs_overlap(monkeypatch, tmp_path, stub_pipeline):

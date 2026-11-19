@@ -5,6 +5,7 @@
 
 // Component exports
 export { default as KaraokePlayer } from "./components/KaraokePlayer";
+export { default as AudioOutputsCard } from "./components/AudioOutputsCard";
 
 // Hook exports
 export * from "./hooks";

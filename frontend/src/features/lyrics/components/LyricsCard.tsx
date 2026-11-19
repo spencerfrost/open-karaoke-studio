@@ -91,8 +91,8 @@ const LyricsCard: React.FC<LyricsCardProps> = ({
 
   return (
     <Card
-      className={`hover:border-primary w-full py-0 ${
-        selectedOption === option ? "border-primary bg-primary/5" : ""
+      className={`hover:border-ring w-full py-0 ${
+        selectedOption === option ? "border-selected bg-selected/5" : ""
       }`}
     >
       <CardContent className="p-3">

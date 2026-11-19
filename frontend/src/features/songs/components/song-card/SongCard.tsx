@@ -76,7 +76,7 @@ export const SongCard: React.FC<SongCardProps> = ({
         <Button
           variant="ghost"
           size="icon"
-          className="text-accent size-7"
+          className="size-7 text-card-detail hover:text-card-foreground"
           aria-label="Add to karaoke queue"
           onClick={showAction("queue") ? handleQueueClick : undefined}
           disabled={isActivelyProcessing}

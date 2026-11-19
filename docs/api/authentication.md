@@ -118,6 +118,26 @@ POST /api/users/login
 
 ---
 
+### Refresh Token
+
+Trade a still-valid token for a new one with a full lifetime. **Requires authentication.** The app calls this once a token is a day old, so a device in use stays signed in.
+
+```http
+POST /api/users/refresh
+Authorization: Bearer <token>
+```
+
+#### Response
+
+The same shape as [Login](#login), with a new `token` and the account's current `is_admin` and `is_host`.
+
+#### Error Responses
+
+- `401 Unauthorized` — Missing, expired or invalid token
+- `403 Forbidden` — Demo account: its token ends with its demo session and isn't renewed
+
+---
+
 ### Update User
 
 Update display name and/or password. **Requires authentication.** Users can only update their own account unless they are an admin. Demo accounts cannot be modified.

@@ -22,6 +22,7 @@ def _run_with(*, vocals, dispatched):
             side_effect=lambda song, **_: {
                 "dispatched": dispatched[song.id],
                 "jobId": f"lyrics-align:{song.id}",
+                "taskId": f"task-{song.id}",
             },
         ) as mock_enqueue,
     ):
@@ -189,3 +190,43 @@ def test_stopping_takes_waiting_alignments_off_the_queue(db):
     db.expire_all()
     # The one aligning now is left to finish.
     assert [job.id for job in db.query(DbJob).all()] == ["lyrics-align:c"]
+
+
+def test_pause_pressed_while_queuing_takes_the_songs_back_off(add_song, db):
+    """The task can't stop part-way through queuing, so the pause lands at
+    the hand-off: nothing is left on the queue and Resume queues it all."""
+    _add(add_song, "a", "Bohemian Rhapsody", 1, synced_lyrics="[00:01.00]Is this")
+    _add(add_song, "b", "Somebody to Love", 2, synced_lyrics="[00:01.00]Can")
+    with SessionLocal() as session:
+        run_id = BatchRunRepository(session).create("lyrics_alignment", "retime").id
+
+    def enqueue(song, **_):
+        # Pause arrives while the songs are being queued.
+        with SessionLocal() as session:
+            repo = BatchRunRepository(session)
+            repo.pause(repo.get(run_id))
+        db.add(_job(song.id, JobStatus.PENDING, task_id=f"task-{song.id}"))
+        db.commit()
+        return {
+            "dispatched": True,
+            "jobId": f"lyrics-align:{song.id}",
+            "taskId": f"task-{song.id}",
+        }
+
+    with (
+        _run_with(vocals={"a", "b"}, dispatched={}) as mock_enqueue,
+        patch("app.jobs.lyrics_dispatch.celery") as celery,
+    ):
+        mock_enqueue.side_effect = enqueue
+        batch_align_lyrics.run(mode="retime", run_id=run_id)
+
+    celery.control.revoke.assert_called_once_with(["task-a", "task-b"])
+    celery.send_task.assert_called_once_with(
+        "release_gpu_memory", kwargs={"reason": f"batch run {run_id} paused"}
+    )
+    db.expire_all()
+    assert db.query(DbJob).count() == 0
+    run = db.get(BatchRun, run_id)
+    assert run.status == "paused"
+    assert run.report["pausedSongIds"] == ["a", "b"]
+    assert BatchRunRepository.paused_song_ids(run) == ["a", "b"]

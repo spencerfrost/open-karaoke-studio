@@ -2,7 +2,7 @@
 
 Endpoints behind the admin dashboard's **Overview**, **Background jobs**, **Failed songs**, **Compare breaks**, **Compare word timing** and **Check vocal range** pages. All of them are **admin only**.
 
-A batch job works through the whole library one song (or artist, or album) at a time on the `enrichment` Celery queue. Every run is recorded in the `batch_runs` table: the API creates the row as `queued` when a run is requested, and the task moves it to `running`, counts `done` / `failed` after each song, and closes it. A run whose worker stops partway is `interrupted` and carries on from where it got to when the enrichment worker starts again (see [Ingestion pipeline](../domains/ingestion-pipeline.md#when-a-worker-stops)). A run can also be paused and resumed by hand, to free the GPU ([Pause a Run](#pause-a-run)).
+A batch job works through the whole library one song (or artist, or album) at a time on the `enrichment` Celery queue. Every run is recorded in the `batch_runs` table: the API creates the row as `queued` when a run is requested, and the task moves it to `running`, counts `done` / `failed` after each song, and closes it. `crashed` lists the ids among `failed` that the worker died on; the resumed run skipped them. A run whose worker stops partway is `interrupted` and carries on from where it got to when the enrichment worker starts again (see [Ingestion pipeline](../domains/ingestion-pipeline.md#when-a-worker-stops)). A run can also be paused and resumed by hand, to free the GPU ([Pause a Run](#pause-a-run)).
 
 | Kind | What it does | Modes |
 |------|--------------|-------|
@@ -16,6 +16,7 @@ A batch job works through the whole library one song (or artist, or album) at a 
 | `artist_images` | Discogs artist photos | `missing` |
 | `lyrics_alignment` | Queues one `align_song_lyrics` job per song | `missing`, `repair`, `all`, `retime` (every song with lyrics, keeping its lyrics) |
 | `lrc_offset` | Sweeps each song's LRC for a whole-song offset (±12 s) on the GPU and stores the result without changing the lyrics; `apply` shifts the songs whose shift passed the gate (see [Lyrics system](../domains/lyrics-system.md#lrc-offset-sweep-job)) | `missing`, `all`, `apply` |
+| `long_lyric_lines` | Cuts stored lyric lines too long to be one line (over 12 words in a transcript, over 20 in any other LRC) from their word timing; no audio or GPU (see [Lyrics system](../domains/lyrics-system.md#long-lyric-lines-job)) | `missing` |
 | `artist_credits` | Re-credits every song from its MusicBrainz recording (older songs without one are re-parsed), merges duplicate artists, fixes names, deletes unused artists; saves a report | `preview`, `apply` |
 
 `missing` runs on the rows that don't have the result yet; `all` re-runs every row. For `loudness`, `singing_map` and `vocal_range`, `missing` also covers songs whose result came from an older version of the step. For `lrc_offset` it also covers songs whose synced lyrics changed since their sweep; its jobs cover songs with synced lyrics and a vocals file. Fingerprinting has no `all`: AcoustID never renames a song, so re-asking about matched or hand-confirmed songs gains nothing. Its `retry` re-asks about songs AcoustID couldn't settle (ambiguous, no match, or a failed lookup), unless a person confirmed their title and artist; an ambiguous song is linked when one of the tied recordings is named like it. Lyrics alignment's run only *queues* songs (each aligns as its own job), so its progress after that shows in its coverage. Artist credits runs over the whole library in both modes: `preview` makes every change in one transaction and rolls it back, `apply` commits it, and both save the same report. Its coverage counts songs credited from a list (their credits keep the name each was printed as); take a `pg_dump` before `apply`.
@@ -84,12 +85,14 @@ Before answering, any `running` row that hasn't reported progress for 15 minutes
       "modes": ["missing", "all"],
       "coverage": { "have": 1488, "of": 1500 },
       "modeCounts": { "missing": 12, "all": 1500 },
-      "lastRun": { "id": 7, "kind": "loudness", "mode": "missing", "status": "done", "total": 40, "done": 39, "failed": 1, "error": null, "createdAt": "2026-10-09T18:02:11Z", "startedAt": "2026-10-09T18:02:12Z", "finishedAt": "2026-10-09T18:03:40Z" },
+      "lastRun": { "id": 7, "kind": "loudness", "mode": "missing", "status": "done", "total": 40, "done": 39, "failed": 1, "crashed": [], "error": null, "createdAt": "2026-10-09T18:02:11Z", "startedAt": "2026-10-09T18:02:12Z", "finishedAt": "2026-10-09T18:03:40Z" },
       "activeRun": null
     }
   ]
 }
 ```
+
+`canPause` is `false` for a job that does its work in one go (the artist credits rebuild); its runs have nothing to pause between.
 
 `lyrics_alignment` also has `repairReasons`: how many songs needing repair have each reason (see [Lyrics API](lyrics.md#library-alignment-stats)).
 
@@ -125,7 +128,7 @@ The report a run saved, as `{ "run": {...}, "report": {...} }`; `404` if it has 
 POST /api/admin/jobs/runs/{run_id}/cancel
 ```
 
-Marks an active run `cancelled` and revokes its task. A queued task never starts; a running one stops before its next song; an interrupted one doesn't resume. A lyrics alignment run that is waiting on its songs takes the ones still queued off the queue; the one aligning now finishes. `409` if the run already finished. A paused run can be stopped too.
+Marks an active run `cancelled` and revokes its task. A queued task never starts; a running one stops before its next song; an interrupted one doesn't resume. A lyrics alignment run that is waiting on its songs takes the ones still queued off the queue; the one aligning now finishes, and a song someone has since asked for by hand is left alone. `409` if the run already finished. A paused run can be stopped too.
 
 ### Pause a Run
 
@@ -134,9 +137,9 @@ POST /api/admin/jobs/runs/{run_id}/pause
 POST /api/admin/jobs/runs/{run_id}/resume
 ```
 
-Pause stops an active run without ending it, to free the GPU. A `running` run becomes `pausing`: its task finishes the song it's on, marks the run `paused` and gives back the GPU memory it used (the worker keeps its CUDA context, a few hundred MB). A `queued` or `interrupted` run is `paused` straight away and its task, if any, revoked. A lyrics alignment run waiting on its songs takes the ones still queued off the queue (kept in its `report` as `pausedSongIds`), is `paused` straight away, and asks the lyrics worker to give back its GPU memory after the song it's aligning. A paused run stays paused across worker restarts.
+Pause stops an active run without ending it, to free the GPU. A `running` run becomes `pausing`: its task finishes the song it's on, marks the run `paused` and gives back the GPU memory it used (the worker keeps its CUDA context, a few hundred MB). A `queued` or `interrupted` run is `paused` straight away and its task, if any, revoked. A lyrics alignment run waiting on its songs takes the ones still queued off the queue (kept in its `report` as `pausedSongIds`), is `paused` straight away, and asks the lyrics worker to give back its GPU memory after the song it's aligning. One still queuing its songs reads `pausing` until it has queued the last, then does the same. A song someone has since asked for by hand stays queued. A paused run stays paused across worker restarts. `409` for a job with `canPause: false`.
 
-Resume carries a paused run on from where it stopped: its task is queued again (`queued`), or an alignment run's paused songs are queued again under the same job ids (`running`). Resuming a `pausing` run before it stopped just marks it `running`, and its task carries on. Both return `{ "run": {...} }`; `409` if the run already finished (pause) or isn't paused (resume).
+Resume carries a paused run on from where it stopped: its task is queued again (`queued`), or an alignment run's paused songs are queued again, in the order they were waiting in, under the same job ids (`running`). If they can't all be queued the run stays `paused` with every song kept, and the reply is `503`. Resuming a `pausing` run before it stopped just marks it `running`, and its task carries on. Both return `{ "run": {...} }`; `409` if the run already finished (pause) or isn't paused (resume).
 
 ### Worker Status
 

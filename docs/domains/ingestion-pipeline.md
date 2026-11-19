@@ -128,11 +128,11 @@ sequenceDiagram
     W-)R: fingerprint_single_song · prefetch_song_lyrics
     W->>E: run_separation_with_fallback(engine_type)
     E-->>W: status strings → progress mapper → DB writes
-    E-)W: on_vocals_ready(vocals.mp3) ~62%
+    E-)W: on_vocals_ready(vocals.mp3) once backing_vocals.mp3 is written too
     W-)R: align_song_lyrics
-    E-->>W: instrumental.mp3 + backing_vocals.mp3
-    W->>DB: song.engine_type, duration, status "processed"
+    E-->>W: instrumental.mp3
     W-)R: detect_song_loudness · detect_song_singing_map (both read the stems, so they wait for separation)
+    W->>DB: song.engine_type, duration, status "processed"
     R-)R: detect_song_vocal_range, from whichever of singing map and alignment finishes second
     W->>DB: job → COMPLETED 100% (the row stays)
     R->>EW: enrichment + lyrics tasks run independently
@@ -266,6 +266,14 @@ is still doing all of this.
 (the same filter the library-wide run selects with) gets `update_song_step`, which checks
 again when it starts, so a song queued twice in a row is done once.
 
+A song's own pipeline sends the same task with `force`, and it always runs. Both senders go
+through `send_song_step` ([song_steps.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/song_steps.py)),
+which keeps a Redis key per song and step from the moment it's sent until the task finishes
+(expiring after an hour if a worker died). The queue-time update skips a step whose key is
+there: a song processed moments ago, whose pipeline's loudness and singing map are still on the
+way, isn't measured twice. The pipeline sends loudness and the singing map before it marks the
+song `processed`, so a song can't be queued to sing in between without them being on the way.
+
 | Batch job | Per-song task | The song needs it when |
 |---|---|---|
 | `loudness` | `detect_song_loudness` | its `loudness_version` is behind |
@@ -274,6 +282,10 @@ again when it starts, so a song queued twice in a row is done once.
 | `song_albums` | `fetch_song_artwork` | never looked up, and it has no album cover |
 | `album_art_videos` | `detect_song_album_art_video` | `video_is_album_art` is null |
 | `fingerprint` | `fingerprint_single_song` | its status is `not_checked` |
+
+The update runs once the response is sent. A song that starts at once (nothing loaded or
+waiting in the session) keeps its word timing as it is: a re-time would land while it's being
+sung.
 
 Word timing goes through `enqueue_song_alignment` on the `lyrics` queue, which pulls the song
 forward if it was waiting in a library run. A song that has lyrics keeps its words and is only
@@ -314,7 +326,11 @@ process outright: no Python exception, no task failure, nothing in the Celery lo
   when the worker consumes `enrichment`, where every `batch_*` task runs. Each run that is
   `interrupted`, or still `running` (its task died with the old worker), has its task queued
   again. A run saves the ids it works through (`batch_runs.item_ids`) when it starts, and a
-  resumed task skips the first `done + failed` of them. Runs that don't go song by song save no
+  resumed task skips the first `done + failed` of them. Before each song the task records it
+  (`item_started`). If that song is the next one unhandled when the run resumes, the worker died
+  on it (a CUDA segfault, say): it's counted failed, added to `crashed_item_ids`, and skipped, so
+  one song can't crash every worker that picks the run up. The admin Background jobs page shows
+  how many of a run's failures crashed the worker. Runs that don't go song by song save no
   ids and start over: lyrics alignment's queueing step, and the artist credits rebuild (one
   transaction, its MusicBrainz lookups cached on disk). A lyrics alignment run already waiting on
   its songs' jobs has nothing to resume and is skipped. This assumes one enrichment worker: a
@@ -343,7 +359,23 @@ isn't resumed when a worker starts, and a `pausing` run whose worker restarted i
 `paused`. **Resume** queues the task again and it carries on from its saved ids. A lyrics
 alignment run waiting on its songs pauses by taking the queued ones off the queue, and the
 `release_gpu_memory` task on the `lyrics` queue frees the lyrics worker's memory after the song
-it's aligning; Resume queues those songs again.
+it's aligning; Resume queues those songs again. The alignment task can't stop while it is still
+queuing songs, so a Pause pressed then takes effect when it has queued the last one
+(`RunTracker.hand_off`). The artist credits rebuild is one transaction and can't pause.
+
+Taking a task off the queue means revoking it, and a revoke only lives in the memory of the
+workers running at that moment: a worker that was down, or restarts before it reaches the
+message, would run the task anyway. Two checks cover that:
+
+- **One task per run.** Whoever queues a run's task saves the task's id on the row first
+  (`queue_run_task` in
+  [_batch_runs.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/_batch_runs.py)).
+  A task that finds another id there stops without touching the run. So a run paused while
+  queued and then resumed is worked once, even if the old task turns up as well.
+- **One task per alignment.** `align_song_lyrics` runs only while its job row still names it
+  (`alignment_is_still_wanted` in
+  [lyrics_dispatch.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/lyrics_dispatch.py)).
+  A paused or stopped run deletes its songs' rows, so their tasks align nothing if they run.
 
 ::: tip Operational gotcha
 Celery does not hot-reload — restart it after editing anything under `backend/app/jobs/` or the
@@ -368,7 +400,7 @@ flowchart LR
     C -.-> C3["prefetch_song_lyrics"]
     D -.->|after separation| D3["detect_song_loudness"]
     D -.->|after separation| D4["detect_song_singing_map"]
-    D -.->|on_vocals_ready ~62%| D2["align_song_lyrics"]
+    D -.->|on_vocals_ready| D2["align_song_lyrics"]
     D4 -.->|second of the two to finish| D1["detect_song_vocal_range"]
     D2 -.->|second of the two to finish| D1
 
@@ -384,14 +416,20 @@ flowchart LR
 Solid = the critical path inside the task. Dashed = `send_task` fire-and-forget; the pipeline
 never waits for any of them and never learns whether they succeeded.
 
-The `on_vocals_ready` hook is the interesting one. Three-track separation writes `vocals.mp3`
-about two thirds of the way through its own run, well before it finishes de-noising the backing
-vocals and converting the instrumental. The engine calls back at that moment so lyrics alignment
-— the slowest downstream task — starts ~40% of a separation earlier than it otherwise would. Only
-the `three_track*` engines pass this callback through
+The `on_vocals_ready` hook is the interesting one. Lyrics alignment listens to the lead and
+backing vocals mixed together (`load_sung_vocals` in
+[services/audio.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/audio.py)), so it can start as soon as
+`vocals.mp3` and `backing_vocals.mp3` are both written. Three-track separation calls back at
+that moment, while the instrumental may still be encoding. Only the `three_track*` engines get
+the callback
 ([jobs/separation.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/separation.py) only forwards `on_vocals_ready` when
-`engine_type.startswith("three_track")`); on `demucs` or `roformer`, lyrics alignment is
-never dispatched by this task at all, and so neither is the vocal range, which waits for it.
+`engine_type.startswith("three_track")`); with any other engine the task dispatches alignment
+itself once separation returns.
+
+Each three-track stem is encoded to a hidden `.<name>.part` file and renamed into place
+([three_track.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/separation_engines/three_track.py)), so a task reading the song folder
+mid-separation finds a stem missing or finished, never half-written. A half-written
+`backing_vocals.mp3` exists but can't be decoded, and alignment would crash on it.
 
 ### Progress accounting (why the numbers look arbitrary)
 
@@ -432,7 +470,7 @@ would hit the same full GPU) and reaches the task.
 
 **Transient failures retry.** In both `process_youtube_job` and `process_audio_job`, a failure that
 `is_transient_processing_error` ([jobs/exceptions.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/jobs/exceptions.py))
-recognises — GPU out of memory (`is_cuda_out_of_memory`, shared with lyrics alignment), or a network-level download error (DNS, timeouts, resets, HTTP
+recognises — GPU out of memory (`is_cuda_out_of_memory`, shared with lyrics alignment; the error has to name CUDA, so the machine's own RAM running out doesn't count), or a network-level download error (DNS, timeouts, resets, HTTP
 5xx) — parks the job as `PENDING` with a "trying again in N min" message and calls `self.retry`
 after 1, 5, then 15 minutes. The song stays `processing` throughout. A retry reuses the
 already-downloaded `original.mp3`; first attempts always download. Only once retries run out does
@@ -453,7 +491,9 @@ ends:
 The card numbers include every other process on it (the other worker, dev's workers, the
 desktop), which is what decides whether the next allocation fits. The torch number is this
 process's own peak, and misses faster-whisper's models. Under 1 GiB free at the tightest moment
-logs as a warning.
+logs as a warning. The same numbers are written to `logs/lyrics_timing.jsonl` as a
+`gpu_memory_peak` event, which is recorded whatever `LOG_LEVEL` is, so prod (which logs warnings
+only) still has every run's peak.
 
 In practice new songs never pick an engine: `POST /api/songs/from-youtube` sends none, so
 `download_and_process_async` uses its `"three_track"` default. The other six are reachable only

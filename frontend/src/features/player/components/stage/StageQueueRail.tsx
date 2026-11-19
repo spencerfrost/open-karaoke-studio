@@ -8,6 +8,7 @@ import React from "react";
 import { Library, Mic, Play, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useOpenSongSelect } from "@/hooks/useOpenSongSelect";
+import { singerSwatchKey, swatchText, swatchTile } from "@/lib/swatch";
 import { cn } from "@/lib/utils";
 import type { KaraokeQueueItemWithSong } from "@/types/KaraokeQueue";
 
@@ -39,7 +40,18 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
       <div className={cn(cardClass, "shrink-0")}>
         <span className={railLabelClass}>Singing Now</span>
         <div className="flex items-center gap-3">
-          <Mic className="size-6 shrink-0 text-primary" />
+          {/* The mic is in the singer's colour, the same one their name
+              carries on every other screen tonight. */}
+          <Mic
+            className={cn(
+              "size-6 shrink-0",
+              current
+                ? swatchText(
+                    singerSwatchKey(current.performerId, current.singer),
+                  )
+                : "text-foreground-faint",
+            )}
+          />
           <span className="min-w-0 truncate font-display text-2xl font-bold text-foreground">
             {current?.singer ?? "—"}
           </span>
@@ -73,7 +85,12 @@ const StageQueueRail: React.FC<StageQueueRailProps> = ({
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
             {upcoming.map((item, index) => (
               <div key={item.id} className="group flex items-center gap-3.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 font-accent text-xl text-primary">
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-full font-accent text-xl",
+                    swatchTile(singerSwatchKey(item.performerId, item.singer)),
+                  )}
+                >
                   {index + 1}
                 </span>
                 <div className="min-w-0 flex-1">

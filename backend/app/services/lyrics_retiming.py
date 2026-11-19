@@ -18,6 +18,7 @@ from typing import Any, Literal, Sequence, TypedDict
 
 from app.services.lyrics_alignment import AlignedWord, LineChunk
 from app.services.lyrics_analysis import parse_lrc_lines
+from app.services.lyrics_analysis import word_tokens as _tokens
 
 # A line cuts the song into chunks only when ASR heard at least this many of
 # its words, each with at least this confidence. A lone "the" can pair with the
@@ -38,7 +39,6 @@ MIN_LINE_GAP_SECONDS = 0.1
 _TAIL_SECONDS = 10.0
 
 _SECTION_HEADER_RE = re.compile(r"^\s*\[[^\]]*\]\s*$")
-_NON_WORD_RE = re.compile(r"[^\w\s]")
 
 
 class RetimingPlan(TypedDict):
@@ -90,11 +90,6 @@ def shown_lyrics_key(synced_lyrics: str | None, plain_lyrics: str | None) -> str
     if plain_lyrics and plain_lyrics.strip():
         return lyrics_words_key(plain_lyrics, "plain")
     return None
-
-
-def _tokens(text: str) -> list[str]:
-    """Words compared between the text and the transcript: lowercase, no punctuation."""
-    return _NON_WORD_RE.sub("", text.lower().replace("’", "'")).split()
 
 
 def _format_timestamp(seconds: float) -> str:

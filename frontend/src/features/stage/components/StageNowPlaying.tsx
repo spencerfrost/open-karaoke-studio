@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import ProgressBar from "@/features/player/components/subcomponents/ProgressBar";
 import { useKaraokePlayerStore } from "@/stores/useKaraokePlayerStore";
 import { usePlaybackStateStore } from "@/stores/usePlaybackStateStore";
+import { SingerDot } from "@/components/session/SingerDot";
+import { singerSwatchKey, swatchText } from "@/lib/swatch";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/utils/formatters";
 import { useStageQueue, useStageShell } from "../StageShellContext";
@@ -70,12 +72,22 @@ const StageNowPlaying: React.FC = () => {
     const message = next ? (
       <>
         Song's over:{" "}
+        <SingerDot
+          performerId={turn.performerId}
+          name={turn.performerName ?? ""}
+          className="mr-1.5 align-middle"
+        />
         <strong className="text-foreground">{turn.performerName}</strong>'s up
         with <em className="text-foreground">{next.song.title}</em>
       </>
     ) : turn.performerName ? (
       <>
         Song's over: pick a song for{" "}
+        <SingerDot
+          performerId={turn.performerId}
+          name={turn.performerName}
+          className="mr-1.5 align-middle"
+        />
         <strong className="text-foreground">{turn.performerName}</strong>
       </>
     ) : (
@@ -143,7 +155,14 @@ const StageNowPlaying: React.FC = () => {
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-1.5 text-foreground-dim">
-            <Mic className="size-4" />
+            <Mic
+              className={cn(
+                "size-4",
+                swatchText(
+                  singerSwatchKey(current.performerId, current.singer),
+                ),
+              )}
+            />
             {current.singer}
           </span>
         </span>

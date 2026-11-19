@@ -7,7 +7,7 @@ const SessionRecoveryLoading: React.FC = () => {
   return (
     <div className="flex-1 flex items-center justify-center flex-col space-y-8">
       <div className="text-center">
-        <h2 className="text-3xl font-bold text-primary mb-4">
+        <h2 className="text-3xl font-bold text-foreground mb-4">
           Restoring Session
         </h2>
         <p className="text-foreground mb-8">
@@ -19,7 +19,7 @@ const SessionRecoveryLoading: React.FC = () => {
           </div>
         )}
         <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-secondary"></div>
         </div>
       </div>
     </div>

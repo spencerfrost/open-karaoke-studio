@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getAuthHeaders } from "./useApi";
+import { getAuthHeaders, handleUnauthorized } from "./useApi";
 
 export interface Artist {
   id: number;
@@ -64,6 +64,9 @@ export function useArtists({
         headers: { ...getAuthHeaders() },
       }),
     ]);
+    // A rejected sign-in must log out and say so, not read as an empty library.
+    handleUnauthorized(artistsRes);
+    handleUnauthorized(showsRes);
     if (!artistsRes.ok) throw new Error("Failed to fetch artists");
     if (!showsRes.ok) throw new Error("Failed to fetch shows");
 

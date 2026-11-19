@@ -23,6 +23,8 @@ import {
   getSweepProgress,
   type LineRenderMode,
 } from "./activeLineTiming";
+import { FixLineButton, LineFixEditor } from "./LineFix";
+import { isSameLine, useLineFixStore } from "@/stores/useLineFixStore";
 
 type ParsedLine = ParsedLrcData["lines"][number];
 type InstrumentalInterval = NonNullable<
@@ -352,6 +354,11 @@ const LyricLine = React.memo(function LyricLine({
   const setRef = (el: HTMLDivElement | null) => {
     lineRefs.current[index] = el;
   };
+  // Only the stage turns fixing on (useLineFixStore.enable).
+  const fixable = useLineFixStore((s) => s.songId !== null);
+  const isEditing = useLineFixStore((s) =>
+    isSameLine(s.editing, { timestamp: line.timestamp, content: line.content }),
+  );
 
   if (line.isBlank) {
     return <div ref={setRef} className="py-2 px-4 text-center min-h-[1em]" />;
@@ -381,24 +388,35 @@ const LyricLine = React.memo(function LyricLine({
   return (
     <div
       ref={setRef}
-      className={`py-2 px-4 transition-[text-shadow] duration-300 ${fontSize} ${weight} ${shadow} text-foreground`}
+      className={`group relative py-2 px-4 transition-[text-shadow] duration-300 ${fontSize} ${weight} ${shadow} text-foreground`}
       role={isActive ? "status" : undefined}
       aria-live={isActive ? "polite" : undefined}
     >
       <div className="flex flex-col items-center justify-center gap-2 w-full">
-        <div className="text-center">
-          <LyricContent
-            line={line}
-            renderMode={renderMode}
-            isActive={isActive}
-            opacity={opacity}
-            isClickable={isClickable}
-            seekProps={seekProps}
-            currentWordIndex={currentWordIndex}
-            sweepProgress={sweepProgress}
+        {isEditing ? (
+          <LineFixEditor
+            line={{ timestamp: line.timestamp, content: line.content }}
           />
-        </div>
+        ) : (
+          <div className="text-center">
+            <LyricContent
+              line={line}
+              renderMode={renderMode}
+              isActive={isActive}
+              opacity={opacity}
+              isClickable={isClickable}
+              seekProps={seekProps}
+              currentWordIndex={currentWordIndex}
+              sweepProgress={sweepProgress}
+            />
+          </div>
+        )}
       </div>
+      {fixable && !isEditing && (
+        <FixLineButton
+          line={{ timestamp: line.timestamp, content: line.content }}
+        />
+      )}
     </div>
   );
 });
@@ -491,9 +509,29 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
     return getActiveLineIndex(parsedData.lines, currentTimeMs);
   }, [parsedData.lines, currentTimeMs]);
 
+  // The line being fixed stays where it is while the song moves on.
+  const isFixingLine = useLineFixStore((s) => s.editing !== null);
+
+  // The keyboard's "fix the current line" needs to know which line that is.
+  useLayoutEffect(() => {
+    const store = useLineFixStore.getState();
+    if (store.songId === null) return;
+    const line = parsedData.lines[currentLineIndex];
+    store.setActiveLine(
+      line && !line.isBlank
+        ? { timestamp: line.timestamp, content: line.content }
+        : null,
+    );
+  }, [parsedData.lines, currentLineIndex]);
+
   const scrollActiveLine = useCallback(
     (behavior: ScrollBehavior) => {
-      if (isUserScrolling || currentLineIndex === -1 || !containerRef.current)
+      if (
+        isUserScrolling ||
+        isFixingLine ||
+        currentLineIndex === -1 ||
+        !containerRef.current
+      )
         return;
 
       const lineElement = lineRefs.current[currentLineIndex];
@@ -505,7 +543,7 @@ const KaraokeLyricsRenderer: React.FC<KaraokeLyricsRendererProps> = ({
         behavior,
       });
     },
-    [currentLineIndex, isUserScrolling],
+    [currentLineIndex, isUserScrolling, isFixingLine],
   );
 
   // Find current word index within the active line (null when no alignment data)

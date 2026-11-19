@@ -65,7 +65,7 @@ const PhoneFader: React.FC<PhoneFaderProps> = ({
       {/* The mute sits beside the level it zeroes, so it costs no row of its
           own; still a full 44 px target. */}
       <div className="flex w-full items-center justify-center gap-2">
-        <span className="font-accent text-3xl leading-none text-primary">
+        <span className="font-accent text-3xl leading-none text-accent">
           {Math.round(volume * 100)}%
         </span>
         <Button
@@ -76,7 +76,7 @@ const PhoneFader: React.FC<PhoneFaderProps> = ({
           className={cn(
             "size-11 shrink-0 rounded-md border",
             isMuted
-              ? "border-primary bg-primary/15 text-foreground"
+              ? "border-selected bg-selected/15 text-foreground"
               : "border-glass-border/20 text-foreground-dim",
           )}
         >

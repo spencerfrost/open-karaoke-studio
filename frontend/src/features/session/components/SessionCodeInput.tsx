@@ -61,7 +61,7 @@ export const SessionCodeInput: React.FC<SessionCodeInputProps> = ({
           className={cn(
             // Separate boxes rather than shadcn's joined segments.
             "rounded-lg border-2 font-accent uppercase shadow-none first:rounded-lg first:border-l-2 last:rounded-lg",
-            "data-[active=true]:border-primary data-[active=true]:ring-primary/30",
+            "data-[active=true]:border-selected data-[active=true]:ring-selected/30",
             variant === "card"
               ? // The slot's caret is bg-foreground (page text); on the card
                 // it needs the card's text color.

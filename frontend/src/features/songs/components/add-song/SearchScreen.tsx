@@ -143,7 +143,7 @@ const OtherVersions: React.FC<{ songs: YoutubeMusicSong[] }> = ({ songs }) => {
           </span>
           <ChevronDown
             className={cn(
-              "text-primary size-5 shrink-0 transition-transform",
+              "text-foreground-dim size-5 shrink-0 transition-transform",
               open && "rotate-180",
             )}
           />

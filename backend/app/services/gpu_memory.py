@@ -15,6 +15,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from time import perf_counter
 
+from app.services.lyrics_timing import log_lyrics_event
+
 logger = logging.getLogger(__name__)
 
 # How often the card's memory is read while a GPU task runs.
@@ -27,7 +29,10 @@ def is_cuda_out_of_memory(exc: BaseException) -> bool:
     """Whether `exc`, or anything it was raised from, is the GPU running out of memory.
 
     torch raises its own OutOfMemoryError; faster-whisper (CTranslate2), cuDNN
-    and cuBLAS raise plain RuntimeErrors that only say so in the message.
+    and cuBLAS raise plain RuntimeErrors that only say so in the message. The
+    message has to name CUDA, so the machine's own RAM running out doesn't
+    count. Only `raise ... from` is followed: an unrelated error raised while a
+    full GPU was being handled is reported as itself.
     """
     seen: set[int] = set()
     current: BaseException | None = exc
@@ -37,9 +42,11 @@ def is_cuda_out_of_memory(exc: BaseException) -> bool:
         if torch is not None and isinstance(current, torch.cuda.OutOfMemoryError):
             return True
         message = str(current).lower()
-        if "out of memory" in message or "alloc_failed" in message:
+        if "alloc_failed" in message or (
+            "out of memory" in message and "cuda" in message
+        ):
             return True
-        current = current.__cause__ or current.__context__
+        current = current.__cause__
     return False
 
 
@@ -129,7 +136,9 @@ def track_gpu_memory(label: str, song_id: str | None = None) -> Generator[None]:
 
     One line per task: the card's peak use and its tightest free memory, plus
     torch's own peak in this process (CTranslate2 models don't count there, so
-    the card number is the one that predicts an out-of-memory error).
+    the card number is the one that predicts an out-of-memory error). The same
+    numbers go to the lyrics event log as `gpu_memory_peak`, which is kept
+    whatever the console's log level.
     """
     sampler = _start_sampler()
     torch = _torch_cuda_ready()
@@ -143,12 +152,12 @@ def track_gpu_memory(label: str, song_id: str | None = None) -> Generator[None]:
             sampler.stop()
             mib = 1024 * 1024
             torch = _torch_cuda_ready()
-            torch_peak = (
-                f"{torch.cuda.max_memory_reserved() // mib} MiB"
-                if torch is not None
-                else "none"
+            torch_peak_mib = (
+                torch.cuda.max_memory_reserved() // mib if torch is not None else None
             )
+            torch_peak = f"{torch_peak_mib} MiB" if torch is not None else "none"
             tightest_free = (sampler.total - sampler.peak_used) // mib
+            elapsed = perf_counter() - started_at
             logger.log(
                 logging.WARNING if tightest_free < _LOW_FREE_MIB else logging.INFO,
                 "[GPU] %s for song %s: card peaked at %d of %d MiB "
@@ -160,6 +169,18 @@ def track_gpu_memory(label: str, song_id: str | None = None) -> Generator[None]:
                 sampler.total // mib,
                 sampler.start_used // mib,
                 tightest_free,
-                perf_counter() - started_at,
+                elapsed,
                 torch_peak,
             )
+            if song_id is not None:
+                log_lyrics_event(
+                    song_id,
+                    "gpu_memory_peak",
+                    task=label,
+                    card_peak_mib=sampler.peak_used // mib,
+                    card_total_mib=sampler.total // mib,
+                    card_start_mib=sampler.start_used // mib,
+                    tightest_free_mib=tightest_free,
+                    torch_peak_mib=torch_peak_mib,
+                    elapsed_seconds=round(elapsed, 1),
+                )

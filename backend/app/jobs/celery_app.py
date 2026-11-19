@@ -31,6 +31,7 @@ celery = Celery(
     include=[
         "app.jobs.audio_tasks",
         "app.jobs.lyrics_tasks",
+        "app.jobs.lyrics_line_tasks",
         "app.jobs.batch_tasks",
         "app.jobs.metadata_tasks",
         "app.jobs.lyrics_dispatch",
@@ -64,6 +65,7 @@ celery.conf.update(
         "detect_song_album_art_video": {"queue": "enrichment"},
         "update_song_step": {"queue": "enrichment"},
         "align_song_lyrics": {"queue": "lyrics"},
+        "align_lyrics_line": {"queue": "lyrics"},
         "fingerprint_single_song": {"queue": "enrichment"},
         "enrich_song_artist_credits": {"queue": "enrichment"},
         "batch_fingerprint_songs": {"queue": "enrichment"},
@@ -77,6 +79,7 @@ celery.conf.update(
         "batch_align_lyrics": {"queue": "enrichment"},
         "batch_rebuild_artist_credits": {"queue": "enrichment"},
         "batch_sweep_lrc_offsets": {"queue": "enrichment"},
+        "batch_split_long_lyric_lines": {"queue": "enrichment"},
         # Runs on the worker that aligned lyrics, after the song it's on.
         "release_gpu_memory": {"queue": "lyrics"},
     },

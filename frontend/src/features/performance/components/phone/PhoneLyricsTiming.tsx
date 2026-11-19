@@ -25,7 +25,7 @@ import { phonePanelClass } from "./phoneStyles";
 const DRAG_PX_PER_STEP = 5;
 
 const nudgeClass =
-  "h-12 flex-1 rounded-md border border-primary text-lg font-semibold text-primary";
+  "h-12 flex-1 rounded-md border border-secondary text-lg font-semibold text-secondary";
 
 const PhoneLyricsTiming: React.FC = () => {
   const lyricsOffset = useKaraokePlayerStore((state) => state.lyricsOffset);
@@ -96,7 +96,7 @@ const PhoneLyricsTiming: React.FC = () => {
           className={cn(
             "flex h-12 min-w-0 flex-1 cursor-ns-resize touch-none select-none items-center justify-center gap-1 rounded-md",
             "border border-glass-border/20 bg-glass/5 transition-colors",
-            isDragging && "border-primary bg-glass/15 ring-1 ring-primary",
+            isDragging && "border-selected bg-glass/15 ring-1 ring-selected",
           )}
         >
           <span className="font-accent text-3xl leading-none text-foreground">

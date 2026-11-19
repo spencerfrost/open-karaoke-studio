@@ -1,5 +1,18 @@
 import { create } from "zustand";
 import { useAudioControlsStore } from "./useAudioControlsStore";
+import { getAudioOutputs, useSettingsStore } from "./useSettingsStore";
+import {
+  canChooseAudioOutput,
+  createVocalMonitor,
+} from "./shared/vocalMonitor";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("store:playbackState");
+
+// AudioContext.setSinkId is not in TypeScript's DOM types yet.
+type SinkableAudioContext = AudioContext & {
+  setSinkId: (sinkId: string) => Promise<void>;
+};
 
 export interface PlaybackStateState {
   // Audio/track info
@@ -16,6 +29,8 @@ export interface PlaybackStateState {
   isPlaying: boolean;
   currentTime: number;
   songEnded: boolean; // True when song has finished playing (not just paused)
+  /** The singer's headphones output is chosen and confirmed on this device. */
+  headphonesReady: boolean;
 
   // Actions
   setSongId: (id: string, duration?: number, gainDb?: number) => void;
@@ -93,11 +108,60 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
   // loudness value is never overwritten and nothing has to restore it. Before
   // the analyser, so the visualizer fades with the sound.
   let fadeGainNode: GainNode | null = null;
+  // The lead vocal on the singer's headphones, when an output is chosen.
+  const monitor = createVocalMonitor((ready) =>
+    set({ headphonesReady: ready }),
+  );
+  // The speakers output the room context was last pointed at ("" = default).
+  let roomSinkId = "";
+
   let activeFade: {
     promise: Promise<boolean>;
     resolve: (completed: boolean) => void;
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
+
+  // --- Audio outputs ---
+  function headphonesLevel() {
+    return (
+      useAudioControlsStore.getState().headphonesVolume *
+      Math.pow(10, normalizationGainDb / 20)
+    );
+  }
+
+  /**
+   * Point the room context at the chosen speakers. A missing device falls
+   * back to the system default: the room hearing the song from the wrong
+   * speakers beats not hearing it.
+   */
+  async function applySpeakers() {
+    const ctx = audioContext as SinkableAudioContext | null;
+    if (!ctx || !canChooseAudioOutput()) return;
+    const wanted =
+      getAudioOutputs(useSettingsStore.getState().audio).speakersDeviceId ?? "";
+    if (wanted === roomSinkId) return;
+    try {
+      await ctx.setSinkId(wanted);
+      roomSinkId = wanted;
+    } catch (error) {
+      logger.warn("Speakers output unavailable, using the default:", error);
+      if (roomSinkId !== "") {
+        await ctx.setSinkId("").catch(() => undefined);
+        roomSinkId = "";
+      }
+    }
+    // The room's latency changed, so the headphones need lining up again.
+    if (audioContext === ctx) monitor.resync();
+  }
+
+  function ensureRoomContext() {
+    if (!audioContext) {
+      audioContext = new window.AudioContext();
+      roomSinkId = "";
+      void applySpeakers();
+    }
+    return audioContext;
+  }
 
   // --- Audio graph helpers ---
   /**
@@ -142,6 +206,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
       fadeGainNode.gain.cancelScheduledValues(0);
       fadeGainNode.gain.value = 1;
     }
+    monitor.cancelFade();
   }
 
   function stopSources() {
@@ -163,6 +228,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     instrumentalSource = null;
     vocalSource = null;
     backingVocalSource = null;
+    monitor.stop();
   }
 
   function clearIntervals() {
@@ -249,6 +315,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     vocalSource.start(startAt, offset);
     backingVocalSource?.start(startAt, offset);
     playbackStartTime = startAt;
+    monitor.start(vocalBuffer, { ctx, startAt, offset });
   }
 
   function resetAudioNodes() {
@@ -282,6 +349,19 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     applyVolumeToGainNode(vocalGain, state.vocalVolume);
     applyVolumeToGainNode(backingVocalGain, state.backingVocalVolume);
     applyVolumeToGainNode(instrumentalGain, state.instrumentalVolume);
+    monitor.setLevel(headphonesLevel());
+  });
+
+  // Outputs are this device's settings. Changes apply mid-song.
+  const applyOutputSettings = () => {
+    const outputs = getAudioOutputs(useSettingsStore.getState().audio);
+    monitor.setDevice(outputs.headphonesDeviceId);
+    monitor.setDelay(outputs.headphonesDelayMs / 1000);
+    void applySpeakers();
+  };
+  applyOutputSettings();
+  useSettingsStore.subscribe((state, previous) => {
+    if (state.audio !== previous.audio) applyOutputSettings();
   });
 
   return {
@@ -296,12 +376,14 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     isPlaying: false,
     currentTime: 0,
     songEnded: false,
+    headphonesReady: false,
 
     setSongId: (id: string, duration?: number, gainDb?: number) => {
       // Accept duration and normalization gain from the backend if available
       cancelFade();
       songDuration = duration;
       normalizationGainDb = gainDb ?? 0;
+      monitor.setLevel(headphonesLevel());
       // Reset playback state when changing songs
       playbackOffset = 0;
       playbackStartTime = null;
@@ -385,6 +467,10 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
         });
 
         tempContext.close();
+
+        // Outputs open now, so the first play starts on the right ones.
+        ensureRoomContext();
+        monitor.prepare();
       } catch {
         set({ error: "Failed to load or decode audio." });
       } finally {
@@ -393,9 +479,8 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
     },
 
     play: (volumes) => {
-      if (!audioContext) {
-        audioContext = new window.AudioContext();
-      }
+      // Opened at load, outside a click, so it may still be suspended.
+      void ensureRoomContext().resume();
       if (!instrumentalBuffer || !vocalBuffer) return;
       clearIntervals();
       cancelFade();
@@ -467,6 +552,7 @@ export const usePlaybackStateStore = create<PlaybackStateState>((set, get) => {
         curve[i] = start * remaining * remaining;
       }
       gain.setValueCurveAtTime(curve, now, ms / 1000);
+      monitor.fadeOut(curve, ms / 1000);
 
       let resolve!: (completed: boolean) => void;
       const promise = new Promise<boolean>((r) => {

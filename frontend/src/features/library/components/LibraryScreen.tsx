@@ -72,13 +72,13 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({
           <Tabs defaultValue="recently-added">
             <TabsList className="mb-4" variant="line">
               <TabsTrigger
-                className="text-xl font-semibold text-primary/80 hover:text-primary"
+                className="text-xl font-semibold text-foreground-dim hover:text-foreground data-[state=active]:text-foreground"
                 value="recently-added"
               >
                 Recently Added
               </TabsTrigger>
               <TabsTrigger
-                className="text-xl font-semibold text-primary/80 hover:text-primary"
+                className="text-xl font-semibold text-foreground-dim hover:text-foreground data-[state=active]:text-foreground"
                 value="recently-sang"
               >
                 Recently Sang

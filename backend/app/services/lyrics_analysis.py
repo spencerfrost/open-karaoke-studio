@@ -47,6 +47,14 @@ class AnalysisResult(TypedDict):
     stats: AnalysisStats
 
 
+_NON_WORD_RE = re.compile(r"[^\w\s]")
+
+
+def word_tokens(text: str) -> list[str]:
+    """A text's words for comparing: lowercase, no punctuation."""
+    return _NON_WORD_RE.sub("", text.lower().replace("’", "'")).split()
+
+
 def parse_lrc_lines(content: str) -> list[LrcLine]:
     """Parse LRC content into structured lines with timestamps."""
     lines: list[LrcLine] = []

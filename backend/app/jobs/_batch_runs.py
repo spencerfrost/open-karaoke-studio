@@ -9,7 +9,9 @@ make that safe to stop:
 - The run saves the ids it works through when it starts. When the enrichment
   worker starts again, resume_interrupted_runs queues the task again for every
   run that was interrupted or whose worker died, and the task carries on after
-  the songs it had already handled.
+  the songs it had already handled. The run records each song as it starts
+  one, so a song the worker died on (a segfault in CUDA code, say) is counted
+  failed on resume instead of crashing every worker that picks the run up.
 
 Pausing uses the same two pieces. Pause marks the run "pausing"; between
 songs the task sees it, marks it "paused", gives back its GPU memory and
@@ -20,9 +22,14 @@ A paused run stays paused across worker restarts.
 from contextlib import contextmanager
 from typing import Any, Callable, Generator, Iterable, Iterator, Optional, TypeVar
 
+from celery import uuid
 from celery.utils.log import get_task_logger
 
-from app.repositories.batch_run_repository import RunNotActive, RunPaused
+from app.repositories.batch_run_repository import (
+    RunNotActive,
+    RunPaused,
+    RunTakenOver,
+)
 
 logger = get_task_logger(__name__)
 
@@ -51,6 +58,33 @@ def worker_stopping() -> bool:
     )
 
 
+def _current_task_id() -> Optional[str]:
+    """The id of the Celery task this is running in; None outside one."""
+    from celery import current_task
+
+    request = getattr(current_task, "request", None)
+    return getattr(request, "id", None)
+
+
+def queue_run_task(repo: Any, run: Any, task_name: str) -> str:
+    """Queue `task_name` for a run and return the task's id.
+
+    The id is saved on the row before the task is sent: the task checks the
+    row names it (BatchRunRepository._check_owner), and a free worker can
+    start it before send_task returns. If sending fails the row keeps the id
+    of a task that never existed, which no task can match; callers close or
+    pause the run then, and the next queue_run_task replaces it.
+    """
+    from app.jobs.celery_app import celery
+
+    task_id = uuid()
+    repo.set_task_id(run, task_id)
+    celery.send_task(
+        task_name, kwargs={"mode": run.mode, "run_id": run.id}, task_id=task_id
+    )
+    return task_id
+
+
 class RunTracker:
     """Writes a batch task's progress to its run row, one update per song.
 
@@ -58,11 +92,16 @@ class RunTracker:
     no-op. Progress writes never break the task: a failed write is logged and
     the work carries on. The one exception is RunNotActive, raised when
     someone cancelled the run, which stops the task between songs.
+
+    Every write carries the task's own id, so a task that isn't the one the
+    run was last queued as stops instead of working the run a second time
+    (BatchRunRepository._check_owner).
     """
 
     def __init__(self, run_id: Optional[int]):
         self.run_id = run_id
         self.handed_off = False
+        self.task_id = _current_task_id()
 
     def begin(self, select: Callable[[], list]) -> list:
         """The ids this run works through, starting the run.
@@ -71,14 +110,20 @@ class RunTracker:
         it had left. Use with `each`, which reports one id per song.
         """
         if self.run_id is not None:
-            remaining = self._write(lambda repo: repo.resume(self.run_id))
+            remaining = self._write(
+                lambda repo: repo.resume(self.run_id, task_id=self.task_id)
+            )
             if remaining is not None:
                 logger.info(
                     "batch run %s: resuming with %d left", self.run_id, len(remaining)
                 )
                 return remaining
         ids = select()
-        self._write(lambda repo: repo.start(self.run_id, len(ids), item_ids=ids))
+        self._write(
+            lambda repo: repo.start(
+                self.run_id, len(ids), item_ids=ids, task_id=self.task_id
+            )
+        )
         return ids
 
     def each(self, ids: Iterable[T]) -> Iterator[T]:
@@ -90,21 +135,42 @@ class RunTracker:
         for item in ids:
             if worker_stopping():
                 raise WorkerStopping()
-            if self._write(lambda repo: repo.is_pausing(self.run_id)):
+            if self._write(
+                lambda repo: repo.begin_item(self.run_id, item, task_id=self.task_id)
+            ):
                 raise RunPaused(self.run_id)
             yield item
 
     def start(self, total: int) -> None:
         """Begin a run that can only start over (it saves no ids to resume from)."""
-        self._write(lambda repo: repo.start(self.run_id, total))
+        self._write(lambda repo: repo.start(self.run_id, total, task_id=self.task_id))
 
     def song_done(self, ok: bool = True) -> None:
-        self._write(lambda repo: repo.advance(self.run_id, ok=ok))
+        self._write(lambda repo: repo.advance(self.run_id, ok=ok, task_id=self.task_id))
 
-    def hand_off(self, job_ids: list[str]) -> None:
-        """Leave the run open, waiting on these jobs, when the task returns."""
+    def hand_off(self, job_ids: list[str], task_ids: list[str]) -> None:
+        """Leave the run open, waiting on these jobs, when the task returns.
+
+        `task_ids` are the Celery tasks behind the jobs. If someone pressed
+        Pause while the task was queuing them, they come straight back off
+        the queue and the run is paused, as if Pause had come a moment later.
+        """
+        from app.jobs.lyrics_dispatch import pause_waiting_alignments
+
         self.handed_off = True
-        self._write(lambda repo: repo.hand_off(self.run_id, job_ids))
+        if not self._write(lambda repo: repo.hand_off(self.run_id, job_ids, task_ids)):
+            return
+        logger.info("batch run %s was paused while queuing; pausing", self.run_id)
+        paused_songs = pause_waiting_alignments(
+            job_ids, task_ids, f"batch run {self.run_id} paused"
+        )
+
+        def pause(repo) -> None:
+            run = repo.get(self.run_id)
+            if run is not None and run.status in ("pausing", "paused"):
+                repo.pause_handed_off(run, paused_songs)
+
+        self._write(pause)
 
     def report(self, report: dict) -> None:
         self._write(lambda repo: repo.set_report(self.run_id, report))
@@ -150,6 +216,8 @@ def tracked_run(run_id: Optional[int]) -> Generator[RunTracker, None, None]:
     tracker = RunTracker(run_id)
     try:
         yield tracker
+    except RunTakenOver:
+        logger.info("batch run %s belongs to a newer task; stopping", run_id)
     except RunNotActive:
         logger.info("batch run %s was cancelled; stopping", run_id)
     except RunPaused:
@@ -178,7 +246,6 @@ def resume_interrupted_runs(queues: Iterable[str]) -> int:
         return 0
 
     from app.db.database import get_db_session
-    from app.jobs.celery_app import celery
     from app.repositories.batch_run_repository import BatchRunRepository
     from app.services.batch_jobs import JOBS
 
@@ -191,10 +258,7 @@ def resume_interrupted_runs(queues: Iterable[str]) -> int:
             if job is None:
                 continue
             repo.interrupt(run.id)
-            task = celery.send_task(
-                job.task_name, kwargs={"mode": run.mode, "run_id": run.id}
-            )
-            repo.set_task_id(run, task.id)
+            queue_run_task(repo, run, job.task_name)
             logger.info(
                 "Resuming batch run %s (%s, %d of %s handled)",
                 run.id,

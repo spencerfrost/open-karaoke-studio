@@ -1,13 +1,12 @@
 /**
- * The pieces every add-song screen is built from: the back link, the theme's
- * header decoration, section labels, and the loading and error states.
+ * The pieces every add-song screen is built from: the back link, the header,
+ * section labels, and the loading and error states.
  */
 
 import React from "react";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HeaderDecoration } from "@/components/layout/HeaderDecoration";
 import { cn } from "@/lib/utils";
 
 export const BackLink: React.FC<{ label: string; onClick: () => void }> = ({
@@ -30,7 +29,7 @@ interface ScreenHeaderProps {
   children: React.ReactNode;
 }
 
-/** Back link, the screen's title block, then the theme's header decoration. */
+/** Back link, then the screen's title block. */
 export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   back,
   children,
@@ -38,7 +37,6 @@ export const ScreenHeader: React.FC<ScreenHeaderProps> = ({
   <header className="flex flex-col gap-3">
     {back}
     {children}
-    <HeaderDecoration className="-mx-4 sm:-mx-6" />
   </header>
 );
 

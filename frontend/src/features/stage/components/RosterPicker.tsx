@@ -16,6 +16,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SingerDot } from "@/components/session/SingerDot";
 import type { SessionPerformer } from "@/types/SessionPerformer";
 
 interface RosterPickerProps {
@@ -57,8 +58,14 @@ export const RosterPicker: React.FC<RosterPickerProps> = ({
               variant={value === performer.name ? "primary" : "outline"}
               size="lg"
               onClick={() => onChange(performer.name)}
-              className="rounded-full text-lg"
+              className="gap-2.5 rounded-full text-lg"
             >
+              {/* A ring keeps the dot visible on the chosen (filled) button. */}
+              <SingerDot
+                performerId={performer.id}
+                name={performer.name}
+                className="size-3 ring-2 ring-background/40"
+              />
               {performer.name}
             </Button>
           ))}

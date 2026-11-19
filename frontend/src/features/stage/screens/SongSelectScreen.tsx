@@ -19,7 +19,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { LogOut, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import SessionInfoDisplay from "@/components/session/SessionInfoDisplay";
+import StageWhosHere from "../components/StageWhosHere";
 import { browseArtistOptions } from "@/hooks/useOpenAddSong";
 import type { Song } from "@/types/Song";
 import { useStageShell } from "../StageShellContext";
@@ -168,7 +168,7 @@ const SongSelectScreen: React.FC<SongSelectScreenProps> = ({
             tall, which the wheel had to shrink to fit under. This corner is
             empty beside the legend, and it is where the performance screen
             keeps its code, so guests look for it in one place. */}
-        <SessionInfoDisplay className="absolute bottom-6 right-6 z-10" />
+        <StageWhosHere className="absolute bottom-6 right-6 z-10" />
       </div>
 
       {/* Reads the store and the shell's queue itself, so the playing song

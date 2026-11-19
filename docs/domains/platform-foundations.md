@@ -158,7 +158,7 @@ What each kind of visitor can reach (this is the matrix in
 
 Four pages wrap themselves in [AppLayout](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/layout/AppLayout.tsx):
 Library, AddSong, Settings and PerformanceControlsPage. It's a full-height column with the
-vintage background layers, a scrolling `<main>`, and [NavBar](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/layout/NavBar.tsx)
+theme's background layers (`.theme-pattern` and `.theme-texture`, which each theme draws or hides), a scrolling `<main>`, and [NavBar](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/components/layout/NavBar.tsx)
 pinned to the bottom as a tab bar.
 
 The tabs come from `useAccess` with the same checks the guards use:
@@ -335,9 +335,25 @@ reaches its `expires_at` while the stage is up, it calls `authStore.expireSessio
 
 `JWT_SECRET_KEY` comes from `.env`. If it's missing, `auth_service` generates a random key for
 that process and logs an error, and `main.py` logs it again at startup. Every restart, including
-a hot reload, then invalidates every token. The default lifetime is 7 days
-(`JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`). There are no refresh tokens: when it expires, the
-next request 401s.
+a hot reload, then invalidates every token. Restarts and deploys with the key set leave tokens
+valid.
+
+### Staying signed in
+
+A token lasts 7 days (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`), and a device in use renews it
+before then. `useKeepSignedIn`, mounted in `App.tsx`, calls `authStore.renewIfDue()` when the app
+opens, when the tab comes back into view, and hourly while it stays open, which covers a TV left
+on for days. `renewIfDue` reads the expiry from the token's payload and only calls
+`POST /api/users/refresh` once the token is a day old. That endpoint takes a still-valid token
+and returns a fresh login response with a new 7-day token and the account's current roles.
+
+- A device nobody opens for 7 days still has to log in again: an expired token can't be renewed.
+- Demo tokens are never renewed. The client skips them, and the endpoint answers 403, because a
+  demo token is cut to end with its demo session.
+- A refresh the server rejects with 401 runs `expireSession()`. A network error or any other
+  status keeps the current token and tries again on the next check.
+- The client's "a day old" reading assumes the 7-day default. With a different
+  `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` the renewal still works, just earlier or later than a day in.
 
 ### Using the token, and what happens on 401
 
@@ -364,8 +380,9 @@ sequenceDiagram
 `expireSession` only clears the account. The session this browser joined stays, so a host whose
 token lapses mid-night is still a member and still sees the app, just without the Stage tab.
 
-Only three paths call `expireSession`: `apiGet` and `apiSend` in `useApi.ts`, and
-`sessionStore.resumeAccountHostSession`. The ~40 raw `fetch` calls elsewhere (see
+The paths that call `expireSession` on a 401 are `apiGet` and `apiSend` in `useApi.ts`,
+`useArtists` (through `handleUnauthorized`), `authStore.renewIfDue`, and
+`sessionStore.resumeAccountHostSession`. The other raw `fetch` calls (see
 [Two API clients](#two-api-clients)) surface a 401 as an ordinary error.
 
 ## Host settings
@@ -461,7 +478,7 @@ Red cards are saved but never read. Of the 12 settings on the page, three do any
 
 | Setting | Read by |
 |---|---|
-| Theme | `useApplyTheme`, mounted in `App`, puts it on `<html data-theme>`, where index.css's theme blocks pick it up. An inline script in `index.html` does the same from `localStorage` before the stylesheet paints. The themes are cyberpunk (the default, also set on `<html>` in `index.html`), retro and Catppuccin; the list is [`themes.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/themes.ts). |
+| Theme | `useApplyTheme`, mounted in `App`, puts it on `<html data-theme>`, where index.css's theme blocks pick it up. An inline script in `index.html` does the same from `localStorage` before the stylesheet paints. The themes are cyberpunk (the default, also set on `<html>` in `index.html`), retro, vintage and Catppuccin; the boot script ignores a saved name that isn't one of them. Each is a `[data-theme]` block in index.css that sets every role, and `:root` holds only what they share. Colour roles: three voices ranked by importance (`primary` the main action, `secondary` the second voice for outline buttons, spinners and quiet emphasis, `accent` the third, used for readouts); job roles that each theme points at one of its colours (`selected` for the active or chosen thing, `ring`, `section-label`); status roles; and six swatches, the colours a theme gives *things* (a singer, a song or artist with no art, a letter group), handed out by key in [`swatch.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/swatch.ts). Hover and focus fills use `surface-hover`; ESLint rejects `accent` as a hover fill so a newly installed shadcn component gets switched. `/theme` ([`ThemePreview.tsx`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/pages/ThemePreview.tsx)) shows every role and the real stage components with a made-up roster and queue, in any theme (`?theme=retro`), without changing the saved one. The list is [`themes.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/themes.ts). |
 | Lyrics Size | Seeds `useUIPreferencesStore.lyricsSize` when the app loads. Changing lyrics size from the player controls writes it back here, so it survives a reload. |
 | Preview Songs on Hover | `useSongPreview` |
 | All four Audio values, all three Processing values, Show Audio Visualizations, Show Progress Bar | nothing |

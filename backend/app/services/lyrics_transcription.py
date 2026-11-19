@@ -15,6 +15,7 @@ from app.services.lyrics_alignment import (
     _is_cuda_device,
     _resolve_alignment_device,
 )
+from app.services.lyrics_line_split import format_lrc_timestamp, split_words_into_lines
 from app.services.lyrics_timing import log_lyrics_event
 
 logger = logging.getLogger(__name__)
@@ -164,10 +165,12 @@ def _estimate_qwen_confidence(
     return round(_clamp_confidence(score), 3)
 
 
-def _line_words(
-    raw_words: list[dict[str, Any]], *, line_index: int, segment_start: float
+def _segment_words(
+    raw_words: list[dict[str, Any]], *, segment_start: float
 ) -> list[dict[str, Any]]:
     """Turn one ASR segment's words into stored words, one per whitespace token.
+
+    Each gets its line_index once the segment is cut into lines.
 
     WhisperX leaves some words untimed (numbers, symbols). They're kept, with
     the previous word's end as their time and a score of 0, so that the line
@@ -196,7 +199,6 @@ def _line_words(
                         if timed
                         else 0.0
                     ),
-                    "line_index": line_index,
                 }
             )
         last_end = word_end
@@ -222,23 +224,29 @@ def _build_transcription_result(
             # No timestamp, so no place in the synced lyrics.
             continue
 
-        line_index = len(synced_lines)
-        line_words = _line_words(
-            segment.get("words", []), line_index=line_index, segment_start=segment_start
+        segment_words = _segment_words(
+            segment.get("words", []), segment_start=segment_start
         )
-        # Build the line from its words when there are any, so the stored text
-        # and the stored words read the same, word for word.
-        text = (
-            " ".join(word["word"] for word in line_words)
-            if line_words
-            else _normalize_text(str(segment.get("text", "")))
-        )
-        if not text:
+        if not segment_words:
+            # No word timing to cut it by: the segment is one line.
+            text = _normalize_text(str(segment.get("text", "")))
+            if text:
+                plain_lines.append(text)
+                synced_lines.append(f"{format_lrc_timestamp(segment_start)}{text}")
             continue
 
-        plain_lines.append(text)
-        synced_lines.append(f"{_format_lrc_timestamp(segment_start)}{text}")
-        aligned_words.extend(line_words)
+        # A segment can be half a minute of singing; cut it into lines.
+        for part_number, line_words in enumerate(split_words_into_lines(segment_words)):
+            line_index = len(synced_lines)
+            for word in line_words:
+                word["line_index"] = line_index
+            # The line is built from its words, so the stored text and the
+            # stored words read the same, word for word.
+            text = " ".join(word["word"] for word in line_words)
+            line_start = segment_start if part_number == 0 else line_words[0]["start"]
+            plain_lines.append(text)
+            synced_lines.append(f"{format_lrc_timestamp(line_start)}{text}")
+            aligned_words.extend(line_words)
 
     if not plain_lines or not synced_lines:
         logger.warning(
@@ -339,49 +347,15 @@ def _segment_qwen_timestamps(time_stamps: Any) -> list[dict[str, Any]]:
     if not words:
         return []
 
-    segments: list[dict[str, Any]] = []
-    current_words: list[dict[str, Any]] = []
-    segment_start = words[0]["start"]
-
-    for word in words:
-        if current_words:
-            previous_word = current_words[-1]
-            gap = word["start"] - previous_word["end"]
-            previous_text = previous_word["word"]
-            should_break = (
-                gap > 1.25
-                or previous_text.endswith((".", "?", "!"))
-                or len(current_words) >= 14
-            )
-            if should_break:
-                segment_end = previous_word["end"]
-                segments.append(
-                    {
-                        "start": segment_start,
-                        "end": segment_end,
-                        "text": _clean_segment_text(
-                            [item["word"] for item in current_words]
-                        ),
-                        "words": current_words,
-                    }
-                )
-                current_words = []
-                segment_start = word["start"]
-
-        current_words.append(word)
-
-    if current_words:
-        segment_end = current_words[-1]["end"]
-        segments.append(
-            {
-                "start": segment_start,
-                "end": segment_end,
-                "text": _clean_segment_text([item["word"] for item in current_words]),
-                "words": current_words,
-            }
-        )
-
-    return segments
+    return [
+        {
+            "start": line_words[0]["start"],
+            "end": line_words[-1]["end"],
+            "text": _clean_segment_text([item["word"] for item in line_words]),
+            "words": line_words,
+        }
+        for line_words in split_words_into_lines(words)
+    ]
 
 
 def _transcribe_with_whisperx(
@@ -641,13 +615,6 @@ def _transcribe_with_qwen3(
         model_name=model_name,
         started_at=started_at,
     )
-
-
-def _format_lrc_timestamp(seconds: float) -> str:
-    total_centiseconds = max(0, int(round(float(seconds) * 100)))
-    minutes, centiseconds = divmod(total_centiseconds, 6000)
-    secs, hundredths = divmod(centiseconds, 100)
-    return f"[{minutes:02d}:{secs:02d}.{hundredths:02d}]"
 
 
 def transcribe_lyrics_from_vocals(

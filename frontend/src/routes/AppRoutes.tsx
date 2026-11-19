@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LibraryPage from "../pages/Library";
 import AddSongPage from "../pages/AddSong";
 import SettingsPage from "../pages/Settings";
+import ThemePreviewPage from "../pages/ThemePreview";
 import StagePage from "../pages/Stage";
 import PerformanceControlsPage from "../pages/PerformanceControlsPage";
 import Entry from "../pages/Entry";
@@ -21,6 +22,7 @@ import AdminDuplicatesPage from "../features/admin/AdminDuplicatesPage";
 import AdminFailedSongsPage from "../features/admin/AdminFailedSongsPage";
 import AdminLyricsFeedbackPage from "../features/admin/AdminLyricsFeedbackPage";
 import AdminLyricsReportsPage from "../features/admin/AdminLyricsReportsPage";
+import AdminLostLineFixesPage from "../features/admin/AdminLostLineFixesPage";
 import AdminMetadataPage from "../features/admin/AdminMetadataPage";
 import { RequireAccess, RequireCapability } from "./guards";
 
@@ -35,6 +37,7 @@ const AppRoutes: React.FC = () => (
       {/* No further requirement. */}
       <Route path="/" element={<LibraryPage />} />
       <Route path="/add/*" element={<AddSongPage />} />
+      <Route path="/theme" element={<ThemePreviewPage />} />
 
       {/* Any account, host or not. A session guest has no settings. */}
       <Route element={<RequireCapability account />}>
@@ -56,6 +59,7 @@ const AppRoutes: React.FC = () => (
           <Route index element={<AdminIndex />} />
           <Route path="lyrics-reports" element={<AdminLyricsReportsPage />} />
           <Route path="lyrics-feedback" element={<AdminLyricsFeedbackPage />} />
+          <Route path="lost-line-fixes" element={<AdminLostLineFixesPage />} />
           <Route path="acoustid" element={<AdminAcoustIdPage />} />
           <Route path="metadata" element={<AdminMetadataPage />} />
           <Route path="failed" element={<AdminFailedSongsPage />} />

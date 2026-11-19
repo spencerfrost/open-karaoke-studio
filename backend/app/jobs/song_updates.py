@@ -7,30 +7,34 @@ jobs page don't have to finish first.
 
 import logging
 
-from .celery_app import celery
 from .lyrics_dispatch import enqueue_song_alignment
+from .song_steps import send_song_step
 
 logger = logging.getLogger(__name__)
 
 
-def update_queued_song(song_id: str) -> list[str]:
+def update_queued_song(song_id: str, word_timing: bool = True) -> list[str]:
     """Queue every step this song is behind on; returns the steps queued.
 
     The steps are the batch jobs with a per-song task, each for a song its
     "missing" run would include, plus word timing when the song's is from an
     older version of alignment. A song still being processed is skipped: its
-    pipeline runs all of this.
+    pipeline runs all of this. So is a step already queued or running for the
+    song, which a song processed moments ago still has.
+
+    `word_timing=False` leaves the lyrics alone: for a song about to start,
+    whose words would otherwise shift while it's being sung.
 
     Never raises: the song is already in the queue, and it plays as it is.
     """
     try:
-        return _update_queued_song(song_id)
+        return _update_queued_song(song_id, word_timing)
     except Exception:
         logger.warning("Couldn't update queued song %s", song_id, exc_info=True)
         return []
 
 
-def _update_queued_song(song_id: str) -> list[str]:
+def _update_queued_song(song_id: str, word_timing: bool) -> list[str]:
     from app.db.database import get_db_session
     from app.repositories.song_repository import SongRepository
     from app.services.batch_jobs import JOBS, song_needs
@@ -44,12 +48,16 @@ def _update_queued_song(song_id: str) -> list[str]:
             return queued
 
         for job in JOBS.values():
-            if job.song_task and song_needs(session, job, song_id):
-                celery.send_task("update_song_step", args=[job.kind, song_id])
+            if (
+                job.song_task
+                and song_needs(session, job, song_id)
+                and send_song_step(job.kind, song_id)
+            ):
                 queued.append(job.kind)
 
         if (
-            is_behind(song.word_timing_version, WORD_TIMING_VERSION)
+            word_timing
+            and is_behind(song.word_timing_version, WORD_TIMING_VERSION)
             and FileService().get_vocals_path(song_id, ".mp3").exists()
         ):
             # A song with lyrics keeps its words and is only re-timed: nobody

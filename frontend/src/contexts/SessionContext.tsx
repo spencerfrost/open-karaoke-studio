@@ -66,7 +66,7 @@ export const SessionProvider: React.FC<SessionProviderProps> = ({
       <div className="min-h-screen bg-card text-card-foreground flex items-center justify-center">
         <div className="theme-texture" />
         <div className="text-center space-y-4 relative z-10">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary mx-auto"></div>
           <p className="text-muted-foreground">
             Initializing karaoke session...
           </p>

@@ -60,7 +60,7 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
       {/* Search Icon */}
       <Search
         size={20}
-        className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary"
+        className="absolute left-3 top-1/2 transform -translate-y-1/2 text-foreground-dim"
       />
 
       {/* Search Input */}
@@ -69,15 +69,15 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         placeholder={placeholder}
-        className="px-12 py-6 border-primary text-foreground bg-tint/20
-                   placeholder:text-foreground-dim focus:ring-primary focus:border-primary"
+        className="px-12 py-6 border-border text-foreground bg-tint/20
+                   placeholder:text-foreground-dim focus:ring-selected focus:border-selected"
       />
 
       {/* Right side icons */}
       <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
         {/* Loading Spinner */}
         {isLoading && (
-          <Loader2 size={16} className="text-primary animate-spin" />
+          <Loader2 size={16} className="text-secondary animate-spin" />
         )}
 
         {/* Clear Button */}
@@ -86,7 +86,7 @@ const LibrarySearchInput: React.FC<LibrarySearchInputProps> = ({
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            className="h-6 w-6 p-0 hover:bg-primary/20 text-primary hover:text-foreground"
+            className="h-6 w-6 p-0 hover:bg-surface-hover text-foreground-dim hover:text-foreground"
           >
             <X size={14} />
           </Button>

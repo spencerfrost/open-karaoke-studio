@@ -5,10 +5,10 @@ FastAPI router for lyrics endpoints.
 import json
 import logging
 from datetime import datetime, timezone
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -17,9 +17,10 @@ from app.api.dependencies import (
     get_current_user,
     get_db,
     require_admin,
+    require_host,
     require_host_or_session_member,
 )
-from app.db.models import KaraokeQueueItem, User
+from app.db.models import DbSong, KaraokeQueueItem, LyricsLineFix, User
 from app.exceptions import ServiceError
 from app.jobs.lyrics_dispatch import enqueue_song_alignment, realign_hand_picked_lyrics
 from app.limiter import limiter
@@ -27,11 +28,19 @@ from app.repositories.lyrics_feedback_repository import (
     LyricsFeedbackRepository,
     LyricsRating,
 )
+from app.repositories.lyrics_line_fix_repository import LyricsLineFixRepository
 from app.repositories.lyrics_report_repository import LyricsReportRepository
 from app.repositories.song_repository import SongRepository
 from app.services.file_service import FileService
 from app.services.lyrics_analysis import analyze_lyrics
 from app.services.lyrics_language import whisper_language_codes
+from app.services.lyrics_line_fix_service import (
+    LineFixError,
+    queue_line_timing,
+    save_line_fix,
+    undo_line_fix,
+)
+from app.services.lyrics_line_fixes import fixes_shown
 from app.services.lyrics_offset import analyze_global_offset, shift_lrc_timestamps
 from app.services.lyrics_service import LyricsService
 from app.services.syncedlyrics_service import SyncedLyricsService
@@ -662,6 +671,155 @@ def undo_lyrics_report(
         )
     logger.info("Lyrics report %s undone (restored=%s)", report_id, restored)
     return {"restored": restored, "alignment": alignment}
+
+
+# ============================================================================
+# Line fixes: a host corrects one line on the stage
+# ============================================================================
+
+# Each fix times one line on the GPU.
+LINE_FIX_RATE_LIMIT = "30/minute"
+
+
+class LineFixRequest(BaseModel):
+    # The line as the screen shows it: its LRC time in seconds and its text.
+    line_start: float = Field(ge=0)
+    old_text: str = Field(max_length=2000)
+    new_text: str = Field(max_length=2000)
+
+
+def _line_fix_to_dict(fix: LyricsLineFix, shown: bool) -> dict:
+    return {
+        "id": fix.id,
+        "songId": fix.song_id,
+        "oldText": fix.old_text,
+        "newText": fix.new_text,
+        "lineStart": fix.line_start,
+        "fixedBy": fix.fixed_by,
+        "createdAt": fix.created_at.isoformat() if fix.created_at else None,
+        "updatedAt": fix.updated_at.isoformat() if fix.updated_at else None,
+        "alignStatus": fix.align_status,
+        # False when the line can't be found in the lyrics any more, or it
+        # was changed by hand since: an admin should look.
+        "shown": shown,
+    }
+
+
+def _line_fixes_to_dicts(fixes: list[LyricsLineFix], song: Optional[DbSong]) -> list:
+    """One song's fixes; its lyrics are parsed once for all of them."""
+    synced = cast(Optional[str], song.synced_lyrics) if song is not None else None
+    return [
+        _line_fix_to_dict(fix, shown)
+        for fix, shown in zip(fixes, fixes_shown(synced, fixes))
+    ]
+
+
+def _fix_song_or_404(song_id: str, db: Session) -> DbSong:
+    song = SongRepository(db).fetch(song_id)
+    if not song:
+        raise HTTPException(status_code=404, detail=f"Song not found: {song_id}")
+    return song
+
+
+@router.get("/songs/{song_id}/line-fixes", response_model=List[dict])
+def list_line_fixes(
+    song_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """A song's line fixes, oldest first, each saying whether the lyrics still show it."""
+    song = _fix_song_or_404(song_id, db)
+    return _line_fixes_to_dicts(LyricsLineFixRepository(db).for_song(song_id), song)
+
+
+@router.post("/songs/{song_id}/line-fixes", response_model=dict, status_code=200)
+@limiter.limit(LINE_FIX_RATE_LIMIT)
+def save_song_line_fix(
+    request: Request,
+    song_id: str,
+    body: LineFixRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """
+    Fix one line of a song's lyrics, as the screen shows it.
+
+    The new text replaces that line only, straight away, and is kept over
+    every later lyrics job. The line's words are timed again on their own
+    inside its window, and keep the line's old timing until then; the rest of
+    the song keeps its timing. Typing the line's first text back removes its
+    fix (`fix` is then null).
+    """
+    song = _fix_song_or_404(song_id, db)
+    try:
+        fix, edit = save_line_fix(
+            db,
+            song,
+            line_start=body.line_start,
+            old_text=body.old_text,
+            new_text=body.new_text,
+            fixed_by=cast(
+                Optional[str], current_user.display_name or current_user.username
+            ),
+            user_id=cast(int, current_user.id),
+        )
+    except LineFixError as e:
+        raise HTTPException(
+            status_code=409 if e.reason == "stale" else 422, detail=e.message
+        )
+
+    task_id = queue_line_timing(edit, fix_id=fix.id if fix else None)
+    if fix is not None and task_id is None and fix.align_status == "pending":
+        LyricsLineFixRepository(db).set_align_status(fix.id, "no_timing")
+        db.commit()
+        db.refresh(fix)
+    return {
+        "fix": _line_fixes_to_dicts([fix], song)[0] if fix is not None else None,
+        "lineIndex": edit.line_index,
+        "text": edit.text,
+    }
+
+
+@router.delete("/line-fixes/{fix_id}", response_model=dict, status_code=200)
+def undo_song_line_fix(
+    fix_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_host),
+):
+    """
+    Remove a line fix. While the lyrics still show it, the line's first text
+    goes back and its words are timed again; otherwise only the fix goes.
+    """
+    fix = LyricsLineFixRepository(db).get(fix_id)
+    if fix is None:
+        raise HTTPException(status_code=404, detail=f"Line fix not found: {fix_id}")
+    song = fix.song
+    edit = undo_line_fix(db, fix)
+    if edit is not None and song is not None:
+        queue_line_timing(edit, fix_id=None)
+    return {"restored": edit is not None, "songId": song.id if song else None}
+
+
+@router.get("/line-fixes/lost", response_model=List[dict])
+def list_lost_line_fixes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Fixes the lyrics no longer show, newest first, with their song."""
+    fixes = LyricsLineFixRepository(db).all_with_songs()
+    by_song: dict[str, list[LyricsLineFix]] = {}
+    for fix in fixes:
+        by_song.setdefault(fix.song_id, []).append(fix)
+    entries: dict[int, dict] = {}
+    for song_fixes in by_song.values():
+        song = song_fixes[0].song
+        for entry in _line_fixes_to_dicts(song_fixes, song):
+            if entry["shown"]:
+                continue
+            entry["songTitle"] = song.title if song else None
+            entry["songArtist"] = song.artist if song else None
+            entries[entry["id"]] = entry
+    return [entries[fix.id] for fix in fixes if fix.id in entries]
 
 
 # ============================================================================

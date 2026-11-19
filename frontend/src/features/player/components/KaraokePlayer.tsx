@@ -139,7 +139,7 @@ const KaraokePlayer: React.FC<KaraokePlayerProps> = ({
               {song.title}
             </h1>
             <h2
-              className="cursor-pointer pt-1 text-lg text-foreground-dim transition-colors hover:text-primary"
+              className="cursor-pointer pt-1 text-lg text-foreground-dim transition-colors hover:text-secondary"
               onClick={() => openSongSelect({ expandArtist: song.artist })}
               role="button"
               tabIndex={0}

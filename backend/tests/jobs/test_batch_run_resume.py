@@ -149,6 +149,58 @@ class TestStopAndResume:
         assert result["processed"] == 1
 
 
+class WorkerDied(BaseException):
+    """Stands in for a segfault: nothing in the task gets to clean up."""
+
+
+class TestSongThatKillsTheWorker:
+    def _crash_on(self, crasher, measured):
+        def get_duration(path):
+            song_id = path.split("/")[-2]
+            measured.append(song_id)
+            if song_id == crasher:
+                raise WorkerDied()
+            return 200.0
+
+        return patch("librosa.get_duration", side_effect=get_duration)
+
+    def test_resume_counts_it_failed_and_carries_on_after_it(self, songs):
+        run_id = _new_run()
+        measured = []
+        with self._crash_on("c", measured):
+            with pytest.raises(WorkerDied):
+                batch_backfill_duration(mode="missing", run_id=run_id)
+            run = _fetch_run(run_id)
+            assert (run.status, run.done, run.failed) == ("running", 2, 0)
+            assert run.item_started == "c"
+
+            batch_backfill_duration(mode="missing", run_id=run_id)
+
+        assert measured == ["a", "b", "c", "d", "e"]
+        run = _fetch_run(run_id)
+        assert (run.status, run.done, run.failed) == ("done", 4, 1)
+        assert run.crashed_item_ids == ["c"]
+
+    def test_a_shutdown_between_songs_counts_nothing_failed(self, songs, measured):
+        run_id = _new_run()
+        with _stop_after(2, measured):
+            batch_backfill_duration(mode="missing", run_id=run_id)
+
+        batch_backfill_duration(mode="missing", run_id=run_id)
+
+        run = _fetch_run(run_id)
+        assert (run.status, run.done, run.failed) == ("done", 5, 0)
+        assert run.crashed_item_ids is None
+
+    def test_a_fresh_run_forgets_the_last_runs_crashes(self, songs):
+        run_id = _new_run(item_started="x", crashed_item_ids=["x"])
+        with patch("librosa.get_duration", return_value=200.0):
+            batch_backfill_duration(mode="missing", run_id=run_id)
+
+        run = _fetch_run(run_id)
+        assert (run.done, run.failed, run.crashed_item_ids) == (5, 0, None)
+
+
 class TestWorkerStopping:
     @pytest.fixture
     def state(self):
@@ -174,10 +226,10 @@ class TestWorkerStopping:
 class TestResumeInterruptedRuns:
     @pytest.fixture
     def send_task(self):
-        task = MagicMock(id="task-new")
-        with patch(
-            "app.jobs.celery_app.celery.send_task", return_value=task
-        ) as send_task:
+        with (
+            patch("app.jobs.celery_app.celery.send_task") as send_task,
+            patch("app.jobs._batch_runs.uuid", return_value="task-new"),
+        ):
             yield send_task
 
     def test_requeues_interrupted_and_orphaned_running_runs(self, send_task):
@@ -199,7 +251,8 @@ class TestResumeInterruptedRuns:
             "batch_backfill_singing_map",
         ]
         assert send_task.mock_calls[0].kwargs == {
-            "kwargs": {"mode": "all", "run_id": interrupted}
+            "kwargs": {"mode": "all", "run_id": interrupted},
+            "task_id": "task-new",
         }
         for run_id in (interrupted, orphaned):
             run = _fetch_run(run_id)

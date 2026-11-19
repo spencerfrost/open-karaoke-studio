@@ -23,6 +23,7 @@
  * Every other window behaves exactly as before.
  */
 
+import { toast } from "sonner";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("lib:guest-window");
@@ -218,4 +219,16 @@ export function openPhoneView(displayCode: string): boolean {
   }
   phone.focus();
   return true;
+}
+
+/**
+ * Open the phone view, or say why it didn't open. The one way the stage's
+ * "No phone? Open a phone view" buttons call it.
+ */
+export function openPhoneViewOrWarn(displayCode: string): void {
+  if (!openPhoneView(displayCode)) {
+    toast.error(
+      "The browser blocked the phone view. Allow pop-ups for this site and try again.",
+    );
+  }
 }

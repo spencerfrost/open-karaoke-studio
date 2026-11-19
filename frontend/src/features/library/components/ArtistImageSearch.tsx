@@ -105,7 +105,7 @@ const ArtistImageSearch: React.FC<ArtistImageSearchProps> = ({
             <button
               key={i}
               type="button"
-              className="relative group aspect-square overflow-hidden rounded-md border border-border hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="relative group aspect-square overflow-hidden rounded-md border border-border hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => onSelect(candidate.uri)}
               disabled={isBusy}
               title={candidate.title}

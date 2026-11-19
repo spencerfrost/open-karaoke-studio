@@ -1,0 +1,355 @@
+{
+ "lines": [
+  {
+   "text": "It's gone before you know it",
+   "start": 21.73,
+   "checked": false
+  },
+  {
+   "text": "It's gone before you know it",
+   "start": 31.24,
+   "checked": false
+  },
+  {
+   "text": "Don't wait, we gotta seize the day.",
+   "start": 38.0,
+   "words": [
+    {
+     "text": "Don't",
+     "start": 38.0,
+     "end": 38.261
+    },
+    {
+     "text": "wait,",
+     "start": 38.341,
+     "end": 38.621
+    },
+    {
+     "text": "we",
+     "start": 38.661,
+     "end": 38.881
+    },
+    {
+     "text": "gotta",
+     "start": 38.921,
+     "end": 39.181
+    },
+    {
+     "text": "seize",
+     "start": 39.221,
+     "end": 39.502
+    },
+    {
+     "text": "the",
+     "start": 39.522,
+     "end": 39.662
+    },
+    {
+     "text": "day.",
+     "start": 39.682,
+     "end": 39.882
+    }
+   ],
+   "checked": false
+  },
+  {
+   "text": "Get out, get out, get out your own way",
+   "start": 40.388,
+   "words": [
+    {
+     "text": "Get",
+     "start": 40.388,
+     "end": 40.528
+    },
+    {
+     "text": "out,",
+     "start": 40.628,
+     "end": 40.788
+    },
+    {
+     "text": "get",
+     "start": 40.848,
+     "end": 41.028
+    },
+    {
+     "text": "out,",
+     "start": 41.088,
+     "end": 41.228
+    },
+    {
+     "text": "get",
+     "start": 41.309,
+     "end": 41.449
+    },
+    {
+     "text": "out",
+     "start": 41.549,
+     "end": 41.689
+    },
+    {
+     "text": "your",
+     "start": 41.749,
+     "end": 41.869
+    },
+    {
+     "text": "own",
+     "start": 41.969,
+     "end": 42.129
+    },
+    {
+     "text": "way",
+     "start": 42.189,
+     "end": 42.429
+    }
+   ],
+   "checked": true
+  },
+  {
+   "text": "Clock keeps ticking, gotta make a plan",
+   "start": 42.729,
+   "words": [
+    {
+     "text": "Clock",
+     "start": 42.729,
+     "end": 42.969
+    },
+    {
+     "text": "keeps",
+     "start": 43.049,
+     "end": 43.29
+    },
+    {
+     "text": "ticking,",
+     "start": 43.33,
+     "end": 43.67
+    },
+    {
+     "text": "gotta",
+     "start": 43.69,
+     "end": 43.95
+    },
+    {
+     "text": "make",
+     "start": 43.99,
+     "end": 44.23
+    },
+    {
+     "text": "a",
+     "start": 44.27,
+     "end": 44.29
+    },
+    {
+     "text": "plan",
+     "start": 44.39,
+     "end": 44.83
+    }
+   ],
+   "checked": true
+  },
+  {
+   "text": "Take a step forward, gotta make a stand",
+   "start": 45.111,
+   "words": [
+    {
+     "text": "Take",
+     "start": 45.111,
+     "end": 45.291
+    },
+    {
+     "text": "a",
+     "start": 45.331,
+     "end": 45.351
+    },
+    {
+     "text": "step",
+     "start": 45.391,
+     "end": 45.591
+    },
+    {
+     "text": "forward,",
+     "start": 45.691,
+     "end": 46.031
+    },
+    {
+     "text": "gotta",
+     "start": 46.051,
+     "end": 46.331
+    },
+    {
+     "text": "make",
+     "start": 46.351,
+     "end": 46.711
+    },
+    {
+     "text": "a",
+     "start": 46.872,
+     "end": 47.092
+    },
+    {
+     "text": "stand",
+     "start": 47.112,
+     "end": 47.212
+    }
+   ],
+   "checked": true
+  },
+  {
+   "text": "Gotta move with the groove, don't you hold back",
+   "start": 47.272,
+   "words": [
+    {
+     "text": "Gotta",
+     "start": 47.272,
+     "end": 47.512
+    },
+    {
+     "text": "move",
+     "start": 47.552,
+     "end": 47.792
+    },
+    {
+     "text": "with",
+     "start": 47.812,
+     "end": 47.952
+    },
+    {
+     "text": "the",
+     "start": 47.972,
+     "end": 48.072
+    },
+    {
+     "text": "groove,",
+     "start": 48.112,
+     "end": 48.452
+    },
+    {
+     "text": "don't",
+     "start": 48.532,
+     "end": 48.813
+    },
+    {
+     "text": "you",
+     "start": 48.853,
+     "end": 48.973
+    },
+    {
+     "text": "hold",
+     "start": 49.013,
+     "end": 49.213
+    },
+    {
+     "text": "back",
+     "start": 49.273,
+     "end": 49.533
+    }
+   ],
+   "checked": true
+  },
+  {
+   "text": "Shake off the fear to keep you on track",
+   "start": 49.87,
+   "checked": false,
+   "words": [
+    {
+     "text": "Shake",
+     "start": 49.873,
+     "end": 50.053
+    },
+    {
+     "text": "off",
+     "start": 50.153,
+     "end": 50.313
+    },
+    {
+     "text": "the",
+     "start": 50.333,
+     "end": 50.413
+    },
+    {
+     "text": "fear",
+     "start": 50.474,
+     "end": 50.734
+    },
+    {
+     "text": "to",
+     "start": 50.754,
+     "end": 50.854
+    },
+    {
+     "text": "keep",
+     "start": 50.914,
+     "end": 51.154
+    },
+    {
+     "text": "you",
+     "start": 51.194,
+     "end": 51.294
+    },
+    {
+     "text": "on",
+     "start": 51.414,
+     "end": 51.594
+    },
+    {
+     "text": "track",
+     "start": 51.694,
+     "end": 52.094
+    }
+   ]
+  },
+  {
+   "text": "Keep you on track",
+   "start": 53.34,
+   "checked": false,
+   "words": [
+    {
+     "text": "Keep",
+     "start": 53.335,
+     "end": 53.575
+    },
+    {
+     "text": "you",
+     "start": 53.635,
+     "end": 53.715
+    },
+    {
+     "text": "on",
+     "start": 53.875,
+     "end": 54.035
+    },
+    {
+     "text": "track",
+     "start": 54.095,
+     "end": 54.436
+    }
+   ]
+  },
+  {
+   "text": "Keep you on track",
+   "start": 55.7,
+   "checked": false,
+   "words": [
+    {
+     "text": "Keep",
+     "start": 55.696,
+     "end": 55.936
+    },
+    {
+     "text": "you",
+     "start": 56.017,
+     "end": 56.097
+    },
+    {
+     "text": "on",
+     "start": 56.237,
+     "end": 56.397
+    },
+    {
+     "text": "track",
+     "start": 56.457,
+     "end": 56.737
+    }
+   ]
+  }
+ ]
+}

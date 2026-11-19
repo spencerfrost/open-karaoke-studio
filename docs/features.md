@@ -125,7 +125,8 @@ Opened from the full song card (stage device and admins). Three tabs:
   - Vocal range: the lowest and highest note the lead singer holds, e.g. G2–E5; none for a
     rapped song
   - Editing the album name stops automatic album lookups from changing it
-- **Lyrics tab:** edit plain and synced lyrics, search for each, clear word timings
+- **Lyrics tab:** edit plain and synced lyrics, search for each, clear word timings; hosts also
+  see the lines fixed on the stage, each with Undo
 - **Actions tab:**
   - Retry download & processing (when the original audio is missing)
   - Identify the song: fingerprint lookup, MusicBrainz search
@@ -234,6 +235,10 @@ Playing, removing, bumping and reordering are for the session owner only.
 - From the [Handoff Screen](#handoff-screen): Skip my turn, Add performer (they sing now and keep
   that seat), Remove from rotation (with undo)
 - When two devices act at once, the first one wins and the other is quietly told
+- Each singer has a colour for the night, from the theme's swatches: the handoff screen's big
+  "Up next" name is in it, and a dot sits beside their name in the handoff screen's lists, the
+  "Who's singing?" buttons, the phone's top bar and the TV's bar, and on
+  the right rail as the Singing Now mic and their Up Next position number
 
 **Status:** ✅ Working
 
@@ -307,7 +312,7 @@ the show.
   line appear along the bottom. A click, a key or deliberate mouse movement brings them back.
   They collapse again after 4 seconds of no activity
 - **Keys:** Space/Enter play-pause · ↑↓ vocal volume · ←→ lyrics timing ±100 ms · F fullscreen ·
-  L songbook
+  L songbook · E fix the line being sung
 - **Scales to the screen:** the whole stage is sized from the viewport, so it keeps its
   proportions on any TV
 
@@ -331,7 +336,8 @@ The same component renders on the TV's left rail and on the phone's controls pag
 always match.
 
 **Features:**
-- **Mix:** Vocals and Backing faders, each with mute
+- **Mix:** Vocals and Backing faders, each with mute, plus Headphones when the stage has a
+  headphones output for the singer
 - **Lyrics:**
   - Search & replace, paste
   - Timing offset: drag the readout, −/+ buttons (100 ms), reset, "Save timing to song"
@@ -351,6 +357,27 @@ always match.
 **Known Limitations:**
 - On the TV the Backing fader is enabled even for two-track songs, where it does nothing
 - Every new song resets the mix and lyrics offset on the TV, but other devices aren't told
+
+---
+
+### Singer's Headphones
+**As a singer, I want to hear the lead vocal in headphones** so I can follow the tune while the
+room hears only the backing track.
+
+**Features:**
+- Settings → Audio Outputs picks the speakers output and the headphones output on the computer
+  playing the songs, with a delay to line the headphones up with a TV's speakers
+- The singer sets the headphones volume from the Mix card on their phone
+
+**Status:** ✅ Working (Chrome, Brave or Edge, at localhost or over https)
+
+**Key Files:**
+- [AudioOutputsCard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/AudioOutputsCard.tsx) - The settings
+- [vocalMonitor.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/shared/vocalMonitor.ts) - The headphones playback
+
+**Known Limitations:**
+- Not on the Shield TV: Android sends all of an app's sound to one output
+- The browser lists outputs only after it's allowed the microphone (nothing is recorded)
 
 ---
 
@@ -544,6 +571,34 @@ How it works: [Lyrics System](/domains/lyrics-system).
 
 ---
 
+### Fix a Line on the Stage
+**As the host, I want to fix a wrong line while it's on the TV** so it's right every time the
+song is sung after.
+
+**Features:**
+- Pointing at a line on the stage shows **Fix this line**; E opens the line being sung
+- The line's words open in a text box in place; playback keeps going. Enter saves, Cancel closes
+- Only that line changes, and only its words are timed again; the rest of the song keeps its
+  timing. Until its words are timed, they light up on the line's old timing
+- A fix is kept for good: fetching new lyrics or timing the song again puts it back on its line
+- Fixes are listed in the song's Lyrics tab with Undo. Fixes whose line is no longer in the
+  lyrics are listed on the admin **Lost line fixes** page
+- Hosts and admins only
+
+**Status:** ✅ Working
+
+**Key Files:**
+- [LineFix.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LineFix.tsx) - The button and the editor
+- [LineFixesList.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LineFixesList.tsx) - A song's fixes with Undo
+- [lyrics_line_fixes.py](https://github.com/spencerfrost/open-karaoke-studio/blob/master/backend/app/services/lyrics_line_fixes.py) - Finding a fixed line again
+
+**Known Limitations:**
+- Only words: a line can't be added, removed or re-timed by hand yet
+- Songs with only plain lyrics can't be fixed this way
+- Escape cancels, but in full screen the browser also leaves full screen on Escape
+
+---
+
 ### Manual Lyrics Input
 **As a user, I want to paste my own lyrics** so I can add lyrics that aren't available online.
 
@@ -672,7 +727,9 @@ How it works: [Sessions, Queue & Realtime](/domains/sessions-realtime).
 **Features:**
 - **Session Display:**
   - The join code and QR are always on the TV (right rail, song wheel, handoff screen)
-  - The session popover with the QR code shows only on the stage
+  - On the song wheel, click the QR code to see **Who's here**: everyone in the rotation in turn
+    order, who's singing, who's up next, how many songs each has waiting, and whose phone is open.
+    It also shows the address and code to type when a camera won't scan
 - **Ending a Session:**
   - "Exit stage → End the session" (owner only) ends the night for everyone and shows a recap,
     with a YouTube Music playlist of the night's songs
@@ -939,13 +996,15 @@ change processing settings.
   the library and manage users on `/admin/users` (create an account, make it a host)
 - **What a guest's phone gets:** the songbook, adding songs, and the controls while in a session.
   Settings, the stage and admin pages are for accounts
-- **Stays signed in for 7 days.** When the sign-in expires the app says "Session expired"; a phone
-  that's also in a session carries on as a guest
+- **Stays signed in while you use it.** A device opened at least once a week never has to log in
+  again. One left unopened for 7 days says "Session expired"; a phone that's also in a session
+  carries on as a guest
 - **Leave session / Log out** from the name chip in the top-right corner of every page
 
 **Status:** ⚠️ Working, with gaps: registration is open to anyone (an open account can't reach
 anyone's session, but can add songs to the library), there's no screen to change a display name
-or password, and a role change shows in an already-signed-in browser only after it signs in again
+or password, and a role change shows in an already-signed-in browser only after it signs in again or renews
+its sign-in (at most a day)
 
 **How it works:** [Platform Foundations](/domains/platform-foundations)
 

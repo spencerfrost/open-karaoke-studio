@@ -32,12 +32,13 @@
     <title>Open Karaoke Studio</title>
     <!-- Apply the saved theme before the stylesheet paints, so a non-default
          theme doesn't flash the default (cyberpunk, set on <html>) first.
-         useApplyTheme takes over once React loads. -->
+         Anything not in the list (keep it in step with src/lib/themes.ts)
+         leaves the default. useApplyTheme takes over once React loads. -->
     <script>
       try {
         var saved = JSON.parse(localStorage.getItem("openKaraokeSettings"));
         var themeName = saved && saved.state && saved.state.theme && saved.state.theme.themeName;
-        if (typeof themeName === "string") {
+        if (["cyberpunk", "retro", "vintage", "catppuccin"].indexOf(themeName) !== -1) {
           document.documentElement.dataset.theme = themeName;
         }
       } catch (e) {}

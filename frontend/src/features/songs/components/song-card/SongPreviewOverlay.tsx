@@ -34,13 +34,13 @@ export const SongPreviewOverlay: React.FC<SongPreviewOverlayProps> = ({
       >
         {isLoading ? (
           // A pulse reads as "warming up"; a spinner over artwork reads as broken.
-          <span className="h-2 w-4 animate-pulse rounded-full bg-accent" />
+          <span className="h-2 w-4 animate-pulse rounded-full bg-secondary" />
         ) : (
           BAR_DELAYS.map((delay, i) => (
             <span
               key={delay}
               className={cn(
-                "eq-bar w-0.5 rounded-full bg-accent",
+                "eq-bar w-0.5 rounded-full bg-secondary",
                 BAR_HEIGHTS[i],
               )}
               style={{ animationDelay: delay }}

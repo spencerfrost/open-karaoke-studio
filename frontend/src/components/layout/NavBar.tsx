@@ -38,8 +38,12 @@ const NavBar: React.FC<NavBarProps> = ({ items }) => {
             variant="ghost"
             onClick={() => navigate(item.path)}
             className={`flex-1 flex flex-col items-center justify-center gap-1 h-full rounded-none ${
-              active ? "opacity-100" : "opacity-50"
-            } ${item.highlight && !active ? "text-primary opacity-90" : "text-foreground"}`}
+              active
+                ? "text-selected"
+                : item.highlight
+                  ? "text-primary"
+                  : "text-foreground-dim"
+            }`}
             aria-current={active ? "page" : undefined}
           >
             <Icon size={20} />

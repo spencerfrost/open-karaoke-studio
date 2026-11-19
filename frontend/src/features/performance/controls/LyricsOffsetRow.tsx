@@ -52,7 +52,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({
   });
 
   const flankClass =
-    "size-11 shrink-0 rounded-md border border-primary text-primary";
+    "size-11 shrink-0 rounded-md border border-secondary text-secondary";
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -86,7 +86,7 @@ const LyricsOffsetRow: React.FC<LyricsOffsetRowProps> = ({
             "flex h-11 min-w-0 flex-1 cursor-ns-resize select-none items-center justify-center gap-1.5 rounded-md",
             "border border-glass-border/20 bg-glass/5 transition-colors",
             "hover:border-glass-border/40 hover:bg-glass/10",
-            isDragging && "border-primary bg-glass/15 ring-1 ring-primary",
+            isDragging && "border-selected bg-glass/15 ring-1 ring-selected",
           )}
         >
           <span className="font-accent text-3xl leading-none text-foreground">

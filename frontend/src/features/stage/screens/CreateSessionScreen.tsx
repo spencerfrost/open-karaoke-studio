@@ -147,7 +147,7 @@ const CreateSessionScreen: React.FC<CreateSessionScreenProps> = ({
         <h1 className="font-display text-4xl text-foreground">
           Creating session
         </h1>
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-secondary" />
       </div>
     );
   }

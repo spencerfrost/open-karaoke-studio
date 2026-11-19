@@ -34,6 +34,25 @@ const defaultDisplaySettings: DisplaySettings = {
   songPreviewsEnabled: true,
 };
 
+export interface AudioOutputs {
+  speakersDeviceId: string | null;
+  speakersDeviceLabel: string;
+  headphonesDeviceId: string | null;
+  headphonesDeviceLabel: string;
+  headphonesDelayMs: number;
+}
+
+/** The audio output settings with their defaults filled in. */
+export function getAudioOutputs(audio: AudioSettings): AudioOutputs {
+  return {
+    speakersDeviceId: audio.speakersDeviceId ?? null,
+    speakersDeviceLabel: audio.speakersDeviceLabel ?? "",
+    headphonesDeviceId: audio.headphonesDeviceId ?? null,
+    headphonesDeviceLabel: audio.headphonesDeviceLabel ?? "",
+    headphonesDelayMs: audio.headphonesDelayMs ?? 0,
+  };
+}
+
 // Initial settings
 const initialSettings: AppSettings = {
   theme: defaultThemeSettings,

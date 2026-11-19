@@ -56,7 +56,7 @@ function Slider({
         <SliderPrimitive.Range
           data-slot="slider-range"
           className={cn(
-            "bg-accent/80 absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
+            "bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
           )}
         />
       </SliderPrimitive.Track>
@@ -70,7 +70,7 @@ function Slider({
               "border-primary bg-foreground ring-ring/50 size-4 rounded-full shadow-sm hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden",
             variant === "performance" && [
               "relative h-14 w-24 rounded-sm",
-              "bg-gradient-to-b from-primary to-secondary border-primary/60",
+              "bg-gradient-to-b from-primary to-primary/70 border-primary/60",
               "shadow-[inset_0_2px_1px_color-mix(in_oklab,color-mix(in_oklab,var(--primary),white_40%)_25%,transparent),inset_0_-2px_1px_rgba(0,0,0,0.45),0_4px_10px_rgba(0,0,0,0.5)]",
               "hover:shadow-[inset_0_2px_1px_color-mix(in_oklab,color-mix(in_oklab,var(--primary),white_40%)_35%,transparent),inset_0_-2px_1px_rgba(0,0,0,0.5),0_4px_10px_rgba(0,0,0,0.5),0_0_12px_color-mix(in_oklab,var(--primary)_40%,transparent)]",
               "focus-visible:outline-hidden",

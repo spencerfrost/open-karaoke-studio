@@ -2,6 +2,7 @@ import React from "react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import AppLayout from "../components/layout/AppLayout";
 import { RotationModeCard } from "@/features/session";
+import { AudioOutputsCard } from "@/features/player";
 import { THEMES, isThemeName } from "@/lib/themes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,7 +133,9 @@ const SettingsPage: React.FC = () => {
   return (
     <AppLayout>
       <div>
-        <h1 className="text-2xl font-semibold mb-6 text-primary">Settings</h1>
+        <h1 className="text-2xl font-semibold mb-6 text-foreground">
+          Settings
+        </h1>
 
         <RotationModeCard />
 
@@ -210,6 +213,8 @@ const SettingsPage: React.FC = () => {
             />
           </CardContent>
         </Card>
+
+        <AudioOutputsCard />
 
         {/* Processing Settings */}
         <Card className="mb-4">

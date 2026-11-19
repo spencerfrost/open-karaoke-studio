@@ -71,6 +71,7 @@ def pipeline(library):
             return_value=(True, "three_track"),
         ),
         patch("app.jobs.audio_tasks.celery.send_task"),
+        patch("app.jobs.audio_tasks.send_song_step"),
         patch.object(process_youtube_job, "update_state"),
         patch("librosa.get_duration", return_value=191.0),
         patch("torch.cuda.empty_cache"),

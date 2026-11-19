@@ -67,6 +67,7 @@ control that sends messages over the session WebSocket. The audio lives in the T
 | **Performance screen** | The player: lyrics in the middle, controls rail on the left, queue rail on the right. |
 | **Rails** | The two side columns of the performance screen. They collapse to icon strips while a song plays. |
 | **Handoff** | The screen between songs: who's up next and what they're singing. |
+| **Singer colour** | A swatch per roster entry, keyed by performer id (`singerSwatchKey` in [swatch.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/lib/swatch.ts)), shown as `SingerDot` beside a name in a list, as the rail's mic and position number, and as the colour of the handoff screen's one big "Up next" name. Not keyed by seat: seats shift when someone is seated ahead. A song from before the roster falls back to the singer's name. |
 | **Wheel** | The stage's song select: columns on a turning cylinder, DDR-style. The first column picks a *source* (Artists A–Z or Recently added), and the source decides the columns after it. |
 | **Stems** | The separated audio files of a song: instrumental, vocals, and on newer songs backing vocals. |
 | **Facade** | `useKaraokePlayerStore`. It mirrors three smaller stores and is the only one components normally touch. |
@@ -239,6 +240,27 @@ and `StageAmbientBar` (a waveform and a thin progress line) appears along the bo
   [sessions-realtime.md](sessions-realtime.md)). It folds away with the label when the rails
   collapse, and only shows with a fine pointer (`pointer-fine:`), so never on the TV.
 
+### Fixing a line
+
+A host can fix a wrong line on the TV while it plays (the lyrics side is in
+[lyrics-system.md](lyrics-system.md#line-fixes-a-host-fixes-one-line-on-the-stage)).
+
+- `StageLayout` turns fixing on for its song when the account is a host
+  ([`useLineFixStore`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useLineFixStore.ts)
+  `enable`), and off when it unmounts, so the lyrics anywhere else (the admin preview, the mini
+  player's song) never offer it.
+- Pointing at a line shows **Fix this line** at the right edge of its row
+  ([LineFix.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/lyrics/components/LineFix.tsx)).
+  It shows on plain `:hover`, not Tailwind's `group-hover`, which waits for `(hover: hover)`: the
+  Shield reports no pointer even with the mic-stand mouse plugged in. While hidden it takes no
+  clicks (`pointer-events-none`), so a tap on a line's right edge still seeks.
+- **E** opens the line being sung. The renderer keeps that line in the store as it changes.
+- The editor replaces the line in place; playback keeps going, and auto-scroll holds while it's
+  open so the line stays put. Enter saves, Cancel or Escape closes it. In fullscreen the browser
+  also leaves fullscreen on Escape.
+- `StageLayout` keeps `useLyricsLineFixes` mounted: it polls while a fixed line's words are being
+  timed, then refreshes the word timing so the line lights up on its new timing.
+
 ### Sizing to the TV
 
 [`useStageRootScale`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/stage/useStageRootScale.ts)
@@ -253,7 +275,7 @@ Four separate window `keydown` listeners, each live only while its screen is up:
 
 | Screen | Hook | Keys |
 |---|---|---|
-| Performance | [`useStageKeyboard`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/stage/useStageKeyboard.ts) | Space/Enter play-pause · ↑↓ vocal volume ±10% · ←→ lyrics offset ±100 ms · F fullscreen (on every screen) · L songbook |
+| Performance | [`useStageKeyboard`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/stage/useStageKeyboard.ts) | Space/Enter play-pause · ↑↓ vocal volume ±10% · ←→ lyrics offset ±100 ms · F fullscreen (on every screen) · L songbook · E fix the line being sung (hosts) |
 | Song select | `useWheelKeys` | ↑↓ move (with its own hold-to-accelerate, up to 36 rows/s) · ←→ turn the wheel · Enter pick · Back · L leave |
 | Confirm | inline in `SongConfirmScreen` | ↑↓ singer · ←→ "Sing it now" / "Add to queue" · Enter · Back |
 | Handoff | inline in `HandoffScreen` | Enter play their song (or open the songbook) · Back/L songbook |
@@ -332,6 +354,47 @@ flowchart LR
 - **Limiter** catches what the normalization can't predict, such as the lead vocal turned up.
 - **Volumes** reach the gain nodes live: `usePlaybackStateStore` subscribes to
   `useAudioControlsStore` and writes `gain.value` on every change.
+
+### Audio outputs
+
+Where the stage's sound goes is a per-device setting (Settings → Audio Outputs,
+[AudioOutputsCard.tsx](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/player/components/AudioOutputsCard.tsx)),
+saved in `useSettingsStore` like the theme. Choosing an output uses `AudioContext.setSinkId`, which
+only Chromium browsers have, and only in a secure context (localhost or https). Elsewhere the card
+says so and everything plays on the system default.
+
+- **Speakers** is where the room context above plays. A speakers output that isn't connected falls
+  back to the system default rather than going silent.
+- **Singer's headphones** plays the lead vocal on its own, so the singer can hear the tune while
+  the room hears the backing track. It is a second `AudioContext`, run by
+  [vocalMonitor.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/shared/vocalMonitor.ts).
+
+```mermaid
+flowchart LR
+    VB["Vocals buffer<br/><i>same decoded buffer</i>"] --> Room["Room graph above<br/><i>vocal vol, usually 0</i>"]
+    Room --> Spk["Speakers output"]
+    VB --> HS["Buffer source<br/>in its own context"]
+    HS --> HG["gain<br/><i>headphones vol × normalization</i>"]
+    HG --> HF["Fade gain"]
+    HF --> HL["Limiter"]
+    HL --> Hp["Headphones output"]
+```
+
+- **Lined up at every start.** The two contexts have separate clocks, so each play, seek, delay
+  change and speakers change works out when the room's start sample leaves its output (using its
+  `baseLatency + outputLatency`) and schedules the headphones to put the same sample out then.
+  If that moment has already passed (a slow output, a late open), it starts a little further into
+  the song instead. A **Headphones delay** setting (0–300 ms) adds the lag the browser can't see,
+  such as a TV's sound processing.
+- **Never on the room output.** A new context starts on the default output, so the headphones
+  context plays nothing until `setSinkId` has resolved. A device that fails is closed, not used.
+- **Opened by the device that plays songs.** Nothing opens until the first song loads, and it then
+  stays open across songs so phones don't see the control flicker at every song change.
+- **The singer sets the level.** `headphonesVolume` lives in `useAudioControlsStore` with the
+  rest of the mix and is the `headphones_volume` session control. The stage sends it as a number
+  once its headphones output is confirmed and as `null` when there is none, so the phone's Mix card
+  shows a Headphones fader only when there's something for it to control. Unlike the other faders
+  it is kept across songs: it suits the ears in the headphones, not the song.
 
 **Time keeping.** There's no media element to ask for the position. The store remembers
 `playbackOffset` (where in the song playback started) and `playbackStartTime` (the AudioContext
@@ -606,7 +669,17 @@ flowchart LR
   cursor. Back from the add screen returns to the row.
 - **Search** is a quiet button in the top bar. Songs come up as library cards; artists are buttons
   that hand back to the wheel, landed on that artist.
-- **The join QR** sits bottom-right, where the performance screen has it.
+- **The join QR** sits bottom-right, where the performance screen has it. Clicking it (not
+  hovering: the mic-stand mouse crosses that corner all night) opens **Who's here**
+  ([`StageWhosHere`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/components/StageWhosHere.tsx)):
+  everyone still in the rotation, in turn order, each with where they stand
+  (singing now, up next, songs waiting, no song yet) and whether their phone is open. Below the
+  list, the address and code to type for a phone that won't scan, and on a computer **No phone?
+  Open a phone view**. The rows are worked out in
+  [`whosHere.ts`](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/whosHere.ts).
+  Nothing in it is a host control, since anyone at the TV can open it. The server connection is
+  only mentioned when it has been lost. **Hide the code** shrinks the corner to a small button
+  that brings it back.
 - **"Exit stage"** is deliberately small and out of reach of the arrow keys, so nobody ends the
   night by pressing Back once too often.
 
@@ -779,6 +852,7 @@ stage starts songs by itself, so the panel keeps these small.
 | Test | Covers |
 |---|---|
 | [useKaraokePlayerStore.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/useKaraokePlayerStore.test.ts) | Defaults, clamping, WebSocket sends, `setSongId`, mini player, `songEnded`, and the song-change fade: own gain node, limiter placement, overtaking, pause mid-fade |
+| [vocalMonitor.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/shared/vocalMonitor.test.ts) | Singer's headphones: silent until the output is confirmed, lined up against the room's latency and the delay, joins mid-song, restarts on delay change |
 | [usePlaybackStateStore.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/stores/usePlaybackStateStore.test.ts) | Stems start at one instant and offset, seek restarts them, position survives pause/play, a pause isn't an end, the instrumental running out ends the song |
 | [wheelModel.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/wheel/wheelModel.test.ts) | Letter grouping, letter stepping, hold rates, scroll routing, the info card's derived facts |
 | [turnItem.test.ts](https://github.com/spencerfrost/open-karaoke-studio/blob/master/frontend/src/features/stage/turnItem.test.ts) | `findTurnItem` |

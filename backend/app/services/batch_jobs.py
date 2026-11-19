@@ -37,6 +37,9 @@ class BatchJob:
     others: dict[str, Callable[[Session], Query]] = field(default_factory=dict)
     # Whether a finished run saves a report (GET /admin/jobs/runs/{id}/report).
     reports: bool = False
+    # Whether a run can pause between songs. False for a job that does its
+    # work in one go, with nothing to stop between.
+    pausable: bool = True
     # Celery task that does the job for one song, taking the song id. A job
     # with one also runs for a song in `missing` when it's queued to sing
     # (app.jobs.song_updates).
@@ -77,6 +80,32 @@ def _songs_with_synced_lyrics(session: Session) -> Query:
     return _songs(session).filter(
         DbSong.synced_lyrics.isnot(None), DbSong.synced_lyrics != ""
     )
+
+
+def _songs_with_word_timing(session: Session) -> Query:
+    return _songs_with_synced_lyrics(session).filter(
+        DbSong.word_synced_lyrics.isnot(None)
+    )
+
+
+def _long_lyric_line_ids(session: Session) -> list[Any]:
+    """Songs with a stored line too long to be one line. Counted in Python:
+    a line's word count isn't something a query can read portably."""
+    from app.services.lyrics_line_split import TRANSCRIPT_SOURCE_MARK, long_line_count
+
+    rows = (
+        _songs_with_word_timing(session)
+        .add_columns(
+            DbSong.synced_lyrics,
+            DbSong.word_synced_lyrics.like(f"%{TRANSCRIPT_SOURCE_MARK}%"),
+        )
+        .all()
+    )
+    return [
+        song_id
+        for song_id, synced, transcript in rows
+        if long_line_count(synced, transcript=bool(transcript))
+    ]
 
 
 def _songs_without_hand_set_album(session: Session) -> Query:
@@ -191,6 +220,8 @@ JOBS: dict[str, BatchJob] = {
             missing=_songs_with_old_credits,
             others={"preview": _songs, "apply": _songs},
             reports=True,
+            # One transaction over the whole library.
+            pausable=False,
         ),
         # Alignment counts come from lyrics_repair instead; see alignment_summary.
         BatchJob(
@@ -199,6 +230,15 @@ JOBS: dict[str, BatchJob] = {
             modes=("missing", "repair", "all", "retime"),
             covered=_songs,
             missing=_songs,
+        ),
+        # Selection and counts come from _long_lyric_line_ids, not a query.
+        BatchJob(
+            kind="long_lyric_lines",
+            task_name="batch_split_long_lyric_lines",
+            # A line already cut fits, so there's nothing for "all" to redo.
+            modes=("missing",),
+            covered=_songs_with_word_timing,
+            missing=_songs_with_word_timing,
         ),
         # Selection and counts come from lrc_offset_layer: a sweep is stale
         # when the lyrics changed, which a query can't compare portably.
@@ -254,6 +294,8 @@ def select_ids(session: Session, kind: str, mode: str) -> list[Any]:
         from app.services import lrc_offset_layer
 
         return list(lrc_offset_layer.select_ids(session, mode))
+    if kind == "long_lyric_lines":
+        return _long_lyric_line_ids(session)
     query = job.rows(session, mode)
     return [row[0] for row in query.all()]
 
@@ -295,6 +337,13 @@ def job_summary(session: Session, job: BatchJob) -> dict:
         from app.services import lrc_offset_layer
 
         return lrc_offset_layer.summary(session)
+    if job.kind == "long_lyric_lines":
+        covered = job.covered(session).count()
+        missing = len(_long_lyric_line_ids(session))
+        return {
+            "coverage": {"have": covered - missing, "of": covered},
+            "modeCounts": {"missing": missing},
+        }
     covered = job.covered(session).count()
     missing = job.missing(session).count()
     counts = {"missing": missing, "all": covered}
@@ -332,6 +381,8 @@ def serialize_run(run: Optional[BatchRun]) -> Optional[dict]:
         "total": run.total,
         "done": run.done,
         "failed": run.failed,
+        # Ids counted in `failed` because the worker died on them.
+        "crashed": run.crashed_item_ids or [],
         "error": run.error,
         "issues": run.issues,
         # Runs waiting on their songs' own jobs: how many haven't finished.

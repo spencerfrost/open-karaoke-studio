@@ -66,8 +66,8 @@ const Tag: React.FC<{ tone: TagTone; children: React.ReactNode }> = ({
   <span
     className={cn(
       "rounded-full px-3 py-1 font-display text-base font-bold uppercase tracking-[0.08em]",
-      tone === "normal" && "bg-primary/15 text-primary",
-      tone === "warn" && "bg-accent/20 text-accent",
+      tone === "normal" && "bg-secondary/15 text-secondary",
+      tone === "warn" && "bg-warning/20 text-warning",
       tone === "quiet" && "bg-foreground/10 text-foreground-dim",
     )}
   >
@@ -103,7 +103,7 @@ const SongInfoCard: React.FC<SongInfoCardProps> = ({
     <motion.aside
       aria-label="Song details"
       onClick={onPick}
-      className="absolute right-14 w-[400px] cursor-pointer rounded-[20px] bg-surface/95 p-6 shadow-[0_20px_60px_rgba(0,0,0,.5)] ring-1 ring-border/30 transition-shadow hover:ring-2 hover:ring-primary/60"
+      className="absolute right-14 w-[400px] cursor-pointer rounded-[20px] bg-surface/95 p-6 shadow-[0_20px_60px_rgba(0,0,0,.5)] ring-1 ring-border/30 transition-shadow hover:ring-2 hover:ring-ring/60"
       style={{ top: centerY, y: "-50%" }}
       initial={{ opacity: 0, x: slide }}
       animate={{ opacity: 1, x: 0 }}

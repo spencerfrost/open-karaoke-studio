@@ -73,6 +73,8 @@ import {
 import LyricsFeedbackRow from "../components/LyricsFeedbackRow";
 import { useStageShell } from "../StageShellContext";
 import { findTurnItem } from "../turnItem";
+import { singerSwatchKey, swatchText, swatchTile } from "@/lib/swatch";
+import { SingerDot } from "@/components/session/SingerDot";
 
 const logger = createLogger("component:handoff-screen");
 
@@ -269,11 +271,14 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
         ? turn.circle
             .filter((p) => p.id !== turn.performerId)
             .slice(0, 3)
-            .map((p) => p.name)
+            .map((p) => ({ performerId: p.id, name: p.name }))
         : upcoming
             .filter((item) => Number(item.id) !== turn.itemId)
             .slice(0, 3)
-            .map((item) => item.singer),
+            .map((item) => ({
+              performerId: item.performerId,
+              name: item.singer,
+            })),
     [turn.circle, turn.performerId, upcoming, turn.itemId],
   );
 
@@ -291,7 +296,18 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
             <p className="text-xl uppercase tracking-[0.2em] text-foreground-faint [@media(max-height:600px)]:text-base">
               Up next
             </p>
-            <h1 className="font-display text-8xl leading-none text-primary [@media(max-height:600px)]:text-6xl">
+            {/* The one name on screen, read from across the room, so it takes
+                their colour itself. Names in lists below get a dot instead:
+                small coloured text turns into a rainbow, and not every
+                swatch is readable that small. */}
+            <h1
+              className={cn(
+                "font-display text-8xl leading-none [@media(max-height:600px)]:text-6xl",
+                swatchText(
+                  singerSwatchKey(turn.performerId, turn.performerName),
+                ),
+              )}
+            >
               {turn.performerName}
             </h1>
           </>
@@ -384,7 +400,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
               value={`${window.location.origin}/join/${displayCode}`}
               size={200}
             />
-            <p className="font-accent text-5xl leading-tight text-primary">
+            <p className="font-accent text-5xl leading-tight text-accent">
               {displayCode}
             </p>
           </div>
@@ -406,7 +422,7 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                     <button
                       key={song.id}
                       onClick={() => handleSuggestion(song)}
-                      className="group overflow-hidden rounded-lg bg-overlay/60 text-left transition-all duration-200 hover:scale-105 hover:bg-overlay/80 hover:ring-2 hover:ring-primary/50"
+                      className="group overflow-hidden rounded-lg bg-overlay/60 text-left transition-all duration-200 hover:scale-105 hover:bg-overlay/80 hover:ring-2 hover:ring-ring/50"
                     >
                       <div className="relative aspect-video w-full">
                         {getArtworkUrl(song, "medium") ? (
@@ -416,11 +432,13 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                             className="size-full object-cover"
                           />
                         ) : (
-                          <div className="flex size-full items-center justify-center bg-primary/20">
-                            <Music
-                              size={32}
-                              className="text-foreground-faint"
-                            />
+                          <div
+                            className={cn(
+                              "flex size-full items-center justify-center",
+                              swatchTile(song.id),
+                            )}
+                          >
+                            <Music size={32} />
                           </div>
                         )}
                       </div>
@@ -508,7 +526,20 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
           {onDeck.length > 0 && (
             <p className="text-lg text-foreground-faint">
               On deck:{" "}
-              <span className="text-foreground-dim">{onDeck.join(" · ")}</span>
+              {onDeck.map((p, i) => (
+                <span
+                  key={`${p.performerId ?? p.name}-${i}`}
+                  className="text-foreground-dim"
+                >
+                  {i > 0 && " · "}
+                  <SingerDot
+                    performerId={p.performerId}
+                    name={p.name}
+                    className="mr-1.5 align-middle"
+                  />
+                  {p.name}
+                </span>
+              ))}
             </p>
           )}
 
@@ -518,8 +549,17 @@ const HandoffScreen: React.FC<HandoffScreenProps> = ({
                 "text-base uppercase tracking-[0.15em] text-foreground-faint",
               )}
             >
-              {turn.circle.map((p) => p.name).join(" → ")} →{" "}
-              {turn.circle[0].name}
+              {[...turn.circle, turn.circle[0]].map((p, i) => (
+                <span key={`${p.id}-${i}`}>
+                  {i > 0 && " → "}
+                  <SingerDot
+                    performerId={p.id}
+                    name={p.name}
+                    className="mr-1.5 size-2 align-middle"
+                  />
+                  {p.name}
+                </span>
+              ))}
             </p>
           )}
 
