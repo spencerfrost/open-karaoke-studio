@@ -274,11 +274,14 @@ const SidebarLink: React.FC<{ section: AdminSection }> = ({ section }) => {
 const AdminLayout: React.FC = () => {
   const location = useLocation();
   const path = location.pathname.replace(/\/+$/, "");
-  const current = ALL_SECTIONS.find((section) =>
-    section.path
-      ? path.startsWith(sectionUrl(section))
-      : path === sectionUrl(section),
-  );
+  // Whole path segments, as the sidebar's useMatch does: a plain prefix would
+  // file /admin/compare-breaks under /admin/compare.
+  const current = ALL_SECTIONS.find((section) => {
+    const url = sectionUrl(section);
+    return section.path
+      ? path === url || path.startsWith(`${url}/`)
+      : path === url;
+  });
 
   return (
     // The page itself never scrolls: the sidebar and the content scroll on
